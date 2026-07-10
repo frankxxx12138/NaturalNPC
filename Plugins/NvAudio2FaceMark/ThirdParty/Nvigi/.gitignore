@@ -1,0 +1,14 @@
+!*.dll
+!*.pdb
+
+# models
+
+# include audio2emotion
+!**/{E5E4043F-5BC9-4175-B510-A563A5BFB035}/*
+
+# exclude most audio2face models
+Models/nvaim.plugin.a2f.trt/*/**
+
+# include audio2face Mark diffusion model
+!Models/nvaim.plugin.a2f.trt/{B76A9F89-1AB5-4D44-8971-82B28BE42519}/**
+

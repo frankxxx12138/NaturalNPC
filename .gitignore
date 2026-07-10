@@ -1,0 +1,121 @@
+# NaturalNPC / Unreal Engine project
+# Keep source, Config, Content, .uproject, scripts, and required plugin files.
+# Ignore generated build output, editor caches, local services, and runtime data.
+
+# Unreal generated folders
+/Binaries/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+
+# Unreal generated files
+*.tmp
+*.temp
+*.log
+*.dmp
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.xcworkspace
+*.xcodeproj
+
+# IDE / editor state
+/.vs/
+/.vscode/
+/.idea/
+*.user
+*.userprefs
+*.sln.DotSettings.user
+
+# Visual Studio / build artifacts
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.dll.response
+*.target
+*.modules
+
+# Generated import/static libraries inside build output only.
+/Binaries/**/*.lib
+/Intermediate/**/*.lib
+/Plugins/*/Intermediate/**/*.lib
+
+# Project-generated plugin build output.
+# Do not ignore all plugin Binaries blindly: NVIDIA ACE ships required runtime DLLs.
+/Plugins/OpenAIJackNPC/Binaries/
+/Plugins/OpenAIJackNPC/Intermediate/
+/Plugins/NaturalNPCGazeSelector/Binaries/
+/Plugins/NaturalNPCGazeSelector/Intermediate/
+/Plugins/NvAudio2FaceMark/Binaries/
+/Plugins/NvAudio2FaceMark/Intermediate/
+/Plugins/NV_ACE_Reference/Intermediate/
+
+# Python virtual environments and caches for local STT/TTS services
+/.venv/
+/.venv-*/
+/venv/
+/env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local AI/service runtime files
+/Saved/ServicePids/
+/Saved/Logs/
+/Saved/TTSCache/
+/Saved/TTSBench/
+/Saved/NPCMemory/
+/Saved/ConvaiLogs/
+/Saved/ConvaiEditor/
+/Saved/Crashes/
+/Saved/Autosaves/
+/Saved/webcache*/
+/Intermediate/PipInstall/
+/Intermediate/JackACE*.wav
+/Intermediate/JackACEWarmup*.wav
+
+# External dependency package contents stored in OneDrive.
+# These files remain on disk locally, but should not be committed to Git.
+/Plugins/NV_ACE_Reference/ThirdParty/Nvigi/Models/
+/Plugins/NvAudio2FaceMark/ThirdParty/Nvigi/Models/
+/Plugins/NV_ACE_Reference/ThirdParty/Nvigi/Binaries/Win64/cublasLt64_12.dll
+/Plugins/NV_ACE_Reference/ThirdParty/Nvigi/Binaries/Win64/cublas64_12.dll
+/Plugins/NV_ACE_Reference/ThirdParty/Nvigi/Binaries/Win64/nvinfer_10.dll
+/Plugins/NV_ACE_Reference/ThirdParty/Nvigi/Binaries/Win64/nvinfer_plugin_10.dll
+/Content/Human2.uasset
+/Content/NewMetaHumanCharacter.uasset
+/Content/MetaHumans/Common/Face/Face_Archetype.uasset
+/Content/MetaHumans/Human2/Face/SKM_Human2_FaceMesh.uasset
+/Content/MetaHumans/NewMetaHumanCharacter/Face/SKM_NewMetaHumanCharacter_FaceMesh.uasset
+
+# Local secrets and machine-specific environment files
+.env
+.env.*
+*.local
+*.secret
+*.key
+
+# Codex/local assistant workspace state
+/.agents/
+/.codex/
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Optional: external AI model packages can be huge. Prefer Git LFS or document
+# how to re-download them instead of committing directly.
+# Uncomment these if you do not want ACE/local model files in Git:
+# *.gguf
+# *.safetensors
+# *.pt
+# *.pth
+# *.onnx
+# *.engine

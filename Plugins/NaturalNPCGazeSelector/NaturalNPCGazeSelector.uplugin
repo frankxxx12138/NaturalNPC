@@ -1,0 +1,22 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "Natural NPC Gaze Selector",
+  "Description": "Selects the Convai NPC closest to the center of the player's view.",
+  "Category": "Gameplay",
+  "CanContainContent": false,
+  "Plugins": [
+    {
+      "Name": "ConvAI",
+      "Enabled": true
+    }
+  ],
+  "Modules": [
+    {
+      "Name": "NaturalNPCGazeSelector",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}
