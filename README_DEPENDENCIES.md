@@ -8,7 +8,7 @@ Large runtime files are stored separately in OneDrive so the Git repository can 
 Download the external dependency package from OneDrive:
 
 ```text
-TODO: paste OneDrive share link here
+TODO: https://uob-my.sharepoint.com/:u:/r/personal/lh25052_bristol_ac_uk/Documents/Natural_NPC/NaturalNPC_ExternalDependencies_2026-07-12.zip?csf=1&web=1&e=3iKVPd
 ```
 
 Recommended archive name:
