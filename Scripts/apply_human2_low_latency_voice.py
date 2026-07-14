@@ -3,6 +3,7 @@ import unreal
 
 HUMAN2_PATH = "/Game/MetaHumans/Human2/BP_Human2"
 OPENAI_CLASS_PATH = "/Script/OpenAIJackNPC.OpenAIJackComponent"
+HUMAN2_MALE_VOICE_PROMPT = "Saved/VoicePrompts/Human2_Male_Reference.wav"
 
 
 LOW_LATENCY_INSTRUCTIONS = (
@@ -59,6 +60,7 @@ openai_component.set_editor_property("ace_warmup_duration_seconds", 0.35)
 openai_component.set_editor_property("ace_realtime_initial_chunk_seconds", 0.03)
 openai_component.set_editor_property("ace_audio_buffer_seconds", 0.02)
 openai_component.set_editor_property("http_tts_url", "http://127.0.0.1:8020/tts")
+openai_component.set_editor_property("http_tts_voice", HUMAN2_MALE_VOICE_PROMPT)
 openai_component.set_editor_property("http_tts_language_code", "en-US")
 openai_component.set_editor_property("enable_queued_speech", True)
 openai_component.set_editor_property("enable_instant_acknowledgement", True)
@@ -115,5 +117,6 @@ unreal.log(
     f"ace_warmup_duration={openai_component.get_editor_property('ace_warmup_duration_seconds')} "
     f"ace_initial_chunk={openai_component.get_editor_property('ace_realtime_initial_chunk_seconds')} "
     f"ace_audio_buffer={openai_component.get_editor_property('ace_audio_buffer_seconds')} "
+    f"voice={openai_component.get_editor_property('http_tts_voice')} "
     f"url={openai_component.get_editor_property('http_tts_url')}"
 )

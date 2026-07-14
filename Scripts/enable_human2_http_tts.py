@@ -3,6 +3,7 @@ import unreal
 
 HUMAN2_PATH = "/Game/MetaHumans/Human2/BP_Human2"
 OPENAI_CLASS_PATH = "/Script/OpenAIJackNPC.OpenAIJackComponent"
+HUMAN2_MALE_VOICE_PROMPT = "Saved/VoicePrompts/Human2_Male_Reference.wav"
 
 
 def unique_subobjects(blueprint):
@@ -41,8 +42,8 @@ openai_component.set_editor_property("enable_open_aitts", False)
 openai_component.set_editor_property("enable_ace_audio2_face", True)
 openai_component.set_editor_property("enable_ace_direct_morph_bridge", False)
 openai_component.set_editor_property("http_tts_url", "http://127.0.0.1:8020/tts")
-openai_component.set_editor_property("http_tts_voice", "Mandarin-CN.Male-1")
-openai_component.set_editor_property("http_tts_language_code", "zh-CN")
+openai_component.set_editor_property("http_tts_voice", HUMAN2_MALE_VOICE_PROMPT)
+openai_component.set_editor_property("http_tts_language_code", "en-US")
 openai_component.set_editor_property("http_tts_sample_rate_hz", 44100)
 
 unreal.BlueprintEditorLibrary.compile_blueprint(blueprint)

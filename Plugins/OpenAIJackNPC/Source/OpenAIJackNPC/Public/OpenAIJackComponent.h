@@ -10,6 +10,8 @@ class UAsyncActionAnimateCharacter;
 class UACEAudioCurveSourceComponent;
 class USkeletalMeshComponent;
 class USoundWaveProcedural;
+class SOverlay;
+class STextBlock;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     FJackTextEvent,
@@ -95,7 +97,8 @@ public:
     FString HttpTTSUrl = TEXT("http://127.0.0.1:8020/tts");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Voice")
-    FString HttpTTSVoice = TEXT("Mandarin-CN.Male-1");
+    FString HttpTTSVoice =
+        TEXT("Saved/VoicePrompts/Human2_Male_Reference.wav");
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Voice")
     FString HttpTTSLanguageCode = TEXT("en-US");
@@ -195,6 +198,27 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack")
     FString Voice = TEXT("onyx");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Subtitles")
+    bool bEnableScreenSubtitles = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Subtitles")
+    bool bShowSubtitleSpeakerName = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Subtitles")
+    FString SubtitleSpeakerName = TEXT("Jack");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Subtitles",
+        meta = (ClampMin = "1.0", ClampMax = "30.0"))
+    float SubtitleDisplaySeconds = 5.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Subtitles",
+        meta = (ClampMin = "12", ClampMax = "48"))
+    int32 SubtitleFontSize = 24;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Subtitles",
+        meta = (ClampMin = "0.0", ClampMax = "240.0"))
+    float SubtitleBottomPadding = 96.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack",
         meta = (MultiLine = true))
@@ -381,6 +405,16 @@ private:
     void PollWindowsSTT();
     void CleanupWindowsSTT();
     void HandleSpeechInputText(const FString& Text, const TCHAR* Source);
+    void EnsureScreenSubtitleWidget();
+    void ShowScreenSubtitle(
+        const FString& Text,
+        float AudioDurationSeconds = 0.0f
+    );
+    void HideScreenSubtitle();
+    float GetSubtitleDisplayDuration(
+        const FString& Text,
+        float AudioDurationSeconds
+    ) const;
 
     void PlayWavBytes(const TArray<uint8>& WavBytes);
     void Fail(const FString& Message);
@@ -416,8 +450,14 @@ private:
     bool bQueuedACEPlaybackEnded = false;
     bool bFinalSpeechQueuedForCurrentTurn = false;
     bool bACEWarmupInFlight = false;
+    bool bSubtitleWidgetAdded = false;
+    FString PendingQueuedACESubtitleText;
+    float PendingQueuedACESubtitleDurationSeconds = 0.0f;
+    TSharedPtr<SOverlay> SubtitleRootWidget;
+    TSharedPtr<STextBlock> SubtitleTextBlock;
     FTimerHandle InstantAcknowledgementTimerHandle;
     FTimerHandle ACEWarmupTimerHandle;
+    FTimerHandle SubtitleTimerHandle;
     void* WindowsSTTRecognizer = nullptr;
     void* WindowsSTTAudioInput = nullptr;
     void* WindowsSTTContext = nullptr;

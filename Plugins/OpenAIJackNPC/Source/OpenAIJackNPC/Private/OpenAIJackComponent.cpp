@@ -16,7 +16,14 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Sound/SoundWaveProcedural.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
 #include "GameFramework/PlayerController.h"
+#include "Styling/CoreStyle.h"
+#include "Widgets/SOverlay.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
 
 #include "ACEBlueprintLibrary.h"
 #include "ACEAudioCurveSourceComponent.h"
@@ -473,6 +480,7 @@ void UOpenAIJackComponent::EndPlay(
     bHttpSTTRequestInFlight = false;
     CleanupWindowsSTT();
     ResetSpeechQueue();
+    HideScreenSubtitle();
     if (bEnableSessionMemoryFile)
     {
         SaveMemory();
@@ -1586,7 +1594,11 @@ void UOpenAIJackComponent::RequestSpeech(const FString& ReplyText)
     Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
     Request->SetContentAsString(Json);
     Request->OnProcessRequestComplete().BindLambda(
-        [this](FHttpRequestPtr, FHttpResponsePtr Response, bool bSucceeded)
+        [this, ReplyText](
+            FHttpRequestPtr,
+            FHttpResponsePtr Response,
+            bool bSucceeded
+        )
         {
             if (!bSucceeded || !Response.IsValid() ||
                 Response->GetResponseCode() < 200 ||
@@ -1598,13 +1610,18 @@ void UOpenAIJackComponent::RequestSpeech(const FString& ReplyText)
                 return;
             }
 
-            if (bEnableACEAudio2Face && TryPlayWavWithACE(Response->GetContent()))
+            const TArray<uint8>& WavBytes = Response->GetContent();
+            const float SubtitleDurationSeconds =
+                EstimateWavDurationSeconds(WavBytes);
+            ShowScreenSubtitle(ReplyText, SubtitleDurationSeconds);
+
+            if (bEnableACEAudio2Face && TryPlayWavWithACE(WavBytes))
             {
                 bBusy = false;
                 return;
             }
 
-            PlayWavBytes(Response->GetContent());
+            PlayWavBytes(WavBytes);
             bBusy = false;
         }
     );
@@ -1828,6 +1845,10 @@ void UOpenAIJackComponent::RequestHttpSpeechInternal(
                 return;
             }
 
+            const float SubtitleDurationSeconds =
+                EstimateWavDurationSeconds(WavBytes);
+            ShowScreenSubtitle(ReplyText, SubtitleDurationSeconds);
+
             if (bEnableACEAudio2Face && TryPlayWavWithACE(WavBytes))
             {
                 return;
@@ -1876,7 +1897,10 @@ void UOpenAIJackComponent::ResetSpeechQueue()
     bQueuedACEPlaybackStarted = false;
     bQueuedACEPlaybackEnded = false;
     bFinalSpeechQueuedForCurrentTurn = false;
+    PendingQueuedACESubtitleText.Reset();
+    PendingQueuedACESubtitleDurationSeconds = 0.0f;
     QueuedSpeechDurationSeconds = 0.0f;
+    HideScreenSubtitle();
 
     if (UWorld* World = GetWorld())
     {
@@ -2030,6 +2054,8 @@ void UOpenAIJackComponent::PumpSpeechQueue()
         const FString TrimmedText = NextItem.Text.TrimStartAndEnd();
         TArray<uint8> WavBytes = MoveTemp(NextItem.WavBytes);
         QueuedSpeechDurationSeconds = NextItem.DurationSeconds;
+        const float SubtitleDurationSeconds =
+            QueuedSpeechDurationSeconds + SpeechSegmentPaddingSeconds;
         const int32 ItemId = NextItem.Id;
         SpeechQueue.RemoveAt(0);
 
@@ -2048,6 +2074,8 @@ void UOpenAIJackComponent::PumpSpeechQueue()
 
         if (bEnableACEAudio2Face)
         {
+            PendingQueuedACESubtitleText = TrimmedText;
+            PendingQueuedACESubtitleDurationSeconds = SubtitleDurationSeconds;
             bCurrentACEFromSpeechQueue = true;
             bQueuedACESendCompleted = false;
             bQueuedACEPlaybackStarted = false;
@@ -2067,8 +2095,11 @@ void UOpenAIJackComponent::PumpSpeechQueue()
             bQueuedACESendCompleted = false;
             bQueuedACEPlaybackStarted = false;
             bQueuedACEPlaybackEnded = false;
+            PendingQueuedACESubtitleText.Reset();
+            PendingQueuedACESubtitleDurationSeconds = 0.0f;
         }
 
+        ShowScreenSubtitle(TrimmedText, SubtitleDurationSeconds);
         PlayWavBytes(WavBytes);
         ScheduleQueuedSpeechCompletion(
             QueuedSpeechDurationSeconds + SpeechSegmentPaddingSeconds
@@ -2097,6 +2128,8 @@ void UOpenAIJackComponent::CompleteQueuedSpeechSegment()
     bQueuedACESendCompleted = false;
     bQueuedACEPlaybackStarted = false;
     bQueuedACEPlaybackEnded = false;
+    PendingQueuedACESubtitleText.Reset();
+    PendingQueuedACESubtitleDurationSeconds = 0.0f;
     QueuedSpeechDurationSeconds = 0.0f;
 
     UE_LOG(
@@ -2606,6 +2639,7 @@ void UOpenAIJackComponent::RequestWindowsSpeech(const FString& ReplyText)
                 ENamedThreads::GameThread,
                 [WeakThis,
                  WavBytes = MoveTemp(WavBytes),
+                 ReplyText,
                  Error,
                  TTSDurationMs =
                     (FPlatformTime::Seconds() - TTSStartSeconds) * 1000.0]()
@@ -2626,6 +2660,12 @@ void UOpenAIJackComponent::RequestWindowsSpeech(const FString& ReplyText)
                         TEXT("JACK_WINDOWS_TTS generated bytes=%d tts_ms=%.1f"),
                         WavBytes.Num(),
                         TTSDurationMs
+                    );
+                    const float SubtitleDurationSeconds =
+                        EstimateWavDurationSeconds(WavBytes);
+                    WeakThis->ShowScreenSubtitle(
+                        ReplyText,
+                        SubtitleDurationSeconds
                     );
                     if (WeakThis->bEnableACEAudio2Face &&
                         WeakThis->TryPlayWavWithACE(WavBytes))
@@ -2803,6 +2843,15 @@ void UOpenAIJackComponent::HandleACEAnimationStarted()
 
     UE_LOG(LogTemp, Display, TEXT("JACK_ACE_A2F_PLAYBACK started"));
     bQueuedACEPlaybackStarted = true;
+    if (!PendingQueuedACESubtitleText.IsEmpty())
+    {
+        ShowScreenSubtitle(
+            PendingQueuedACESubtitleText,
+            PendingQueuedACESubtitleDurationSeconds
+        );
+        PendingQueuedACESubtitleText.Reset();
+        PendingQueuedACESubtitleDurationSeconds = 0.0f;
+    }
     StartSpeechPrefetches();
 }
 
@@ -2822,6 +2871,168 @@ void UOpenAIJackComponent::HandleACEAnimationEnded()
     UE_LOG(LogTemp, Display, TEXT("JACK_ACE_A2F_PLAYBACK ended"));
     bQueuedACEPlaybackEnded = true;
     TryCompleteQueuedACESpeechSegment();
+}
+
+void UOpenAIJackComponent::EnsureScreenSubtitleWidget()
+{
+    if (!bEnableScreenSubtitles || !GEngine || !GEngine->GameViewport)
+    {
+        return;
+    }
+
+    if (!SubtitleRootWidget.IsValid())
+    {
+        SAssignNew(SubtitleRootWidget, SOverlay)
+        + SOverlay::Slot()
+        .HAlign(HAlign_Fill)
+        .VAlign(VAlign_Bottom)
+        .Padding(FMargin(16.0f, 0.0f, 16.0f, SubtitleBottomPadding))
+        [
+            SNew(SBox)
+            .HAlign(HAlign_Fill)
+            .MinDesiredWidth(1200.0f)
+            .MaxDesiredWidth(3500.0f)
+            [
+                SNew(SBorder)
+                .HAlign(HAlign_Fill)
+                .Padding(FMargin(18.0f, 10.0f))
+                .BorderImage(FCoreStyle::Get().GetBrush("GenericWhiteBox"))
+                .BorderBackgroundColor(FLinearColor(0.0f, 0.0f, 0.0f, 0.72f))
+                [
+                    SAssignNew(SubtitleTextBlock, STextBlock)
+                    .AutoWrapText(true)
+                    .Justification(ETextJustify::Center)
+                    .ColorAndOpacity(FLinearColor::White)
+                    .ShadowOffset(FVector2D(1.0f, 1.0f))
+                    .ShadowColorAndOpacity(FLinearColor::Black)
+                    .Font(FCoreStyle::GetDefaultFontStyle(
+                        FName(TEXT("Regular")),
+                        FMath::Clamp(SubtitleFontSize, 12, 48)
+                    ))
+                ]
+            ]
+        ];
+    }
+
+    if (!bSubtitleWidgetAdded && SubtitleRootWidget.IsValid())
+    {
+        GEngine->GameViewport->AddViewportWidgetContent(
+            SubtitleRootWidget.ToSharedRef(),
+            1000
+        );
+        bSubtitleWidgetAdded = true;
+    }
+}
+
+void UOpenAIJackComponent::ShowScreenSubtitle(
+    const FString& Text,
+    float AudioDurationSeconds
+)
+{
+    if (!bEnableScreenSubtitles)
+    {
+        return;
+    }
+
+    const FString TrimmedText = Text.TrimStartAndEnd();
+    if (TrimmedText.IsEmpty())
+    {
+        return;
+    }
+
+    EnsureScreenSubtitleWidget();
+    if (!SubtitleTextBlock.IsValid())
+    {
+        return;
+    }
+
+    FString DisplayText = TrimmedText;
+    const FString TrimmedSpeakerName = SubtitleSpeakerName.TrimStartAndEnd();
+    if (bShowSubtitleSpeakerName && !TrimmedSpeakerName.IsEmpty())
+    {
+        DisplayText = FString::Printf(
+            TEXT("%s: %s"),
+            *TrimmedSpeakerName,
+            *TrimmedText
+        );
+    }
+
+    SubtitleTextBlock->SetText(FText::FromString(DisplayText));
+
+    const float DisplaySeconds =
+        GetSubtitleDisplayDuration(TrimmedText, AudioDurationSeconds);
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(SubtitleTimerHandle);
+        World->GetTimerManager().SetTimer(
+            SubtitleTimerHandle,
+            FTimerDelegate::CreateWeakLambda(
+                this,
+                [this]()
+                {
+                    HideScreenSubtitle();
+                }
+            ),
+            DisplaySeconds,
+            false
+        );
+    }
+
+    UE_LOG(
+        LogTemp,
+        Display,
+        TEXT("JACK_SUBTITLE show duration=%.2f text=%s"),
+        DisplaySeconds,
+        *DisplayText
+    );
+}
+
+void UOpenAIJackComponent::HideScreenSubtitle()
+{
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(SubtitleTimerHandle);
+    }
+
+    if (SubtitleTextBlock.IsValid())
+    {
+        SubtitleTextBlock->SetText(FText::GetEmpty());
+    }
+
+    if (bSubtitleWidgetAdded &&
+        SubtitleRootWidget.IsValid() &&
+        GEngine &&
+        GEngine->GameViewport)
+    {
+        GEngine->GameViewport->RemoveViewportWidgetContent(
+            SubtitleRootWidget.ToSharedRef()
+        );
+        bSubtitleWidgetAdded = false;
+    }
+}
+
+float UOpenAIJackComponent::GetSubtitleDisplayDuration(
+    const FString& Text,
+    float AudioDurationSeconds
+) const
+{
+    const float MinimumDisplaySeconds =
+        FMath::Clamp(SubtitleDisplaySeconds, 1.0f, 30.0f);
+    const float ReadingDurationSeconds =
+        static_cast<float>(Text.Len()) * 0.045f;
+    const float AudioDisplaySeconds =
+        AudioDurationSeconds > UE_SMALL_NUMBER
+            ? AudioDurationSeconds + 0.2f
+            : 0.0f;
+    return FMath::Clamp(
+        FMath::Max3(
+            MinimumDisplaySeconds,
+            ReadingDurationSeconds,
+            AudioDisplaySeconds
+        ),
+        1.0f,
+        30.0f
+    );
 }
 
 void UOpenAIJackComponent::ResolveACEDirectMorphBridge()

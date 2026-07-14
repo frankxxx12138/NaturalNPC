@@ -16,6 +16,8 @@ public class OpenAIJackNPC : ModuleRules
                 "Json",
                 "JsonUtilities",
                 "AudioMixer",
+                "Slate",
+                "SlateCore",
                 "ACECore",
                 "ACERuntime"
             }
