@@ -1,0 +1,16 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "Natural NPC World State",
+  "Description": "Runtime world-object registry, NPC perception snapshots, and action execution.",
+  "Category": "AI",
+  "CanContainContent": false,
+  "Modules": [
+    {
+      "Name": "NaturalNPCWorldState",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

@@ -16,9 +16,15 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Sound/SoundWaveProcedural.h"
+#include "Animation/AnimSequence.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
+#include "GameFramework/Actor.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
+#include "NPCWorldStateAgentComponent.h"
+#include "NPCWorldStateTypes.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Layout/SBorder.h"
@@ -442,6 +448,7 @@ UOpenAIJackComponent::UOpenAIJackComponent()
 void UOpenAIJackComponent::BeginPlay()
 {
     Super::BeginPlay();
+    EnsureWorldStateAgent();
     AudioComponent = NewObject<UAudioComponent>(GetOwner(), TEXT("JackLocalAIAudio"));
     AudioComponent->bAutoActivate = false;
     AudioComponent->bAllowSpatialization = true;
@@ -479,6 +486,7 @@ void UOpenAIJackComponent::EndPlay(
     bHttpSTTListening = false;
     bHttpSTTRequestInFlight = false;
     CleanupWindowsSTT();
+    StopFollowingPlayer();
     ResetSpeechQueue();
     HideScreenSubtitle();
     if (bEnableSessionMemoryFile)
@@ -507,6 +515,8 @@ void UOpenAIJackComponent::TickComponent(
 
     UpdateKeyboardPushToTalk(DeltaTime);
     PollWindowsSTT();
+    UpdateActionMovement(DeltaTime);
+    UpdateActionJump(DeltaTime);
 }
 
 FString UOpenAIJackComponent::GetApiKey() const
@@ -517,7 +527,54 @@ FString UOpenAIJackComponent::GetApiKey() const
 void UOpenAIJackComponent::SendPlayerText(const FString& PlayerText)
 {
     const FString TrimmedPlayerText = PlayerText.TrimStartAndEnd();
-    if (bBusy || TrimmedPlayerText.IsEmpty())
+    if (TrimmedPlayerText.IsEmpty())
+    {
+        return;
+    }
+
+    EnsureWorldStateAgent();
+    FString WorldActionReply;
+    if (bEnableWorldStateNaturalLanguageActions &&
+        IsValid(WorldStateAgent) &&
+        WorldStateAgent->TryExecuteNaturalLanguageAction(
+            TrimmedPlayerText,
+            WorldActionReply
+        ))
+    {
+        UE_LOG(
+            LogTemp,
+            Display,
+            TEXT("JACK_WORLD_ACTION handled text=%s reply=%s"),
+            *TrimmedPlayerText,
+            *WorldActionReply
+        );
+        if (!bBusy)
+        {
+            SpeakLocalActionReply(TrimmedPlayerText, WorldActionReply);
+        }
+        return;
+    }
+
+    FString ActionReply;
+    if (TryHandleNaturalLanguageAction(TrimmedPlayerText, ActionReply))
+    {
+        if (!bBusy)
+        {
+            SpeakLocalActionReply(TrimmedPlayerText, ActionReply);
+        }
+        else
+        {
+            UE_LOG(
+                LogTemp,
+                Display,
+                TEXT("JACK_ACTION handled_while_busy text=%s"),
+                *TrimmedPlayerText
+            );
+        }
+        return;
+    }
+
+    if (bBusy)
     {
         return;
     }
@@ -697,6 +754,699 @@ void UOpenAIJackComponent::ClearConversation()
     UE_LOG(LogTemp, Display, TEXT("JACK_LOCAL_AI_MEMORY cleared session=true"));
 }
 
+void UOpenAIJackComponent::StartFollowingPlayer(bool bRun)
+{
+    FollowTargetActor = ResolveFollowTarget();
+    bFollowingPlayer = true;
+    bFollowUsingRun = bRun;
+    CurrentActionAnimationState = EActionAnimationState::None;
+
+    UE_LOG(
+        LogTemp,
+        Display,
+        TEXT("JACK_ACTION follow started mode=%s target=%s"),
+        bFollowUsingRun ? TEXT("run") : TEXT("walk"),
+        FollowTargetActor.IsValid()
+            ? *FollowTargetActor->GetName()
+            : TEXT("none")
+    );
+}
+
+void UOpenAIJackComponent::EnsureWorldStateAgent()
+{
+    if (!bEnableWorldState || IsValid(WorldStateAgent) || !GetOwner())
+    {
+        return;
+    }
+    WorldStateAgent =
+        GetOwner()->FindComponentByClass<UNPCWorldStateAgentComponent>();
+    if (!WorldStateAgent)
+    {
+        WorldStateAgent = NewObject<UNPCWorldStateAgentComponent>(
+            GetOwner(),
+            UNPCWorldStateAgentComponent::StaticClass(),
+            TEXT("NPCWorldStateAgent")
+        );
+        GetOwner()->AddInstanceComponent(WorldStateAgent);
+        WorldStateAgent->PerceptionRadius = WorldStatePerceptionRadius;
+        WorldStateAgent->RegisterComponent();
+    }
+    else
+    {
+        WorldStateAgent->PerceptionRadius = WorldStatePerceptionRadius;
+    }
+    WorldStateAgent->RefreshWorldState();
+}
+
+FString UOpenAIJackComponent::GetWorldStateJson() const
+{
+    return IsValid(WorldStateAgent)
+        ? WorldStateAgent->GetWorldStateJson()
+        : FString(TEXT("{\"objects\":[]}"));
+}
+
+bool UOpenAIJackComponent::ExecuteWorldAction(
+    FName ObjectId,
+    FName ActionId,
+    const FString& Parameters,
+    FString& OutMessage
+)
+{
+    EnsureWorldStateAgent();
+    if (!IsValid(WorldStateAgent))
+    {
+        OutMessage = TEXT("World-state support is not available.");
+        return false;
+    }
+    FNPCWorldActionResult Result;
+    const bool bSuccess = WorldStateAgent->ExecuteWorldAction(
+        ObjectId,
+        ActionId,
+        Parameters,
+        Result
+    );
+    OutMessage = Result.Message;
+    return bSuccess;
+}
+
+void UOpenAIJackComponent::StopFollowingPlayer()
+{
+    if (!bFollowingPlayer &&
+        CurrentActionAnimationState == EActionAnimationState::None)
+    {
+        return;
+    }
+
+    bFollowingPlayer = false;
+    bFollowUsingRun = false;
+    FollowTargetActor.Reset();
+    RestoreActionAnimation();
+
+    UE_LOG(LogTemp, Display, TEXT("JACK_ACTION follow stopped"));
+}
+
+void UOpenAIJackComponent::PlayJumpAction()
+{
+    PlayActionAnimation(EActionAnimationState::Jump, false);
+
+    UAnimSequence* JumpSequence =
+        ResolveActionAnimation(EActionAnimationState::Jump);
+    const float AnimationDurationSeconds = JumpSequence
+        ? FMath::Clamp(JumpSequence->GetPlayLength(), 0.2f, 3.0f)
+        : 0.8f;
+    const float JumpDurationSeconds = FMath::Clamp(
+        ActionJumpDurationSeconds > UE_SMALL_NUMBER
+            ? ActionJumpDurationSeconds
+            : AnimationDurationSeconds,
+        0.2f,
+        3.0f
+    );
+
+    if (AActor* Owner = GetOwner())
+    {
+        bActionJumpInProgress = true;
+        ActionJumpElapsedSeconds = 0.0f;
+        ActionJumpActiveDurationSeconds = JumpDurationSeconds;
+        ActionJumpBaseZ = Owner->GetActorLocation().Z;
+    }
+
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(ActionAnimationTimerHandle);
+        World->GetTimerManager().SetTimer(
+            ActionAnimationTimerHandle,
+            FTimerDelegate::CreateWeakLambda(
+                this,
+                [this]()
+                {
+                    bActionJumpInProgress = false;
+                    if (AActor* Owner = GetOwner())
+                    {
+                        FVector Location = Owner->GetActorLocation();
+                        Location.Z = ActionJumpBaseZ;
+                        Owner->SetActorLocation(Location, true);
+                    }
+                    CurrentActionAnimationState = EActionAnimationState::None;
+                    if (!bFollowingPlayer)
+                    {
+                        RestoreActionAnimation();
+                    }
+                }
+            ),
+            JumpDurationSeconds,
+            false
+        );
+    }
+
+    UE_LOG(
+        LogTemp,
+        Display,
+        TEXT("JACK_ACTION jump duration=%.2f height=%.1f"),
+        JumpDurationSeconds,
+        ActionJumpHeight
+    );
+}
+
+bool UOpenAIJackComponent::TryHandleNaturalLanguageAction(
+    const FString& PlayerText,
+    FString& OutReply
+)
+{
+    if (!bEnableNaturalLanguageActions)
+    {
+        return false;
+    }
+
+    const FString LowerText = PlayerText.ToLower();
+    const bool bStopFollowIntent =
+        LowerText.Contains(TEXT("stop following")) ||
+        LowerText.Contains(TEXT("don't follow")) ||
+        LowerText.Contains(TEXT("dont follow")) ||
+        LowerText.Contains(TEXT("stay there")) ||
+        LowerText.Contains(TEXT("wait there")) ||
+        LowerText.Contains(TEXT("stop there")) ||
+        PlayerText.Contains(TEXT("停止跟随")) ||
+        PlayerText.Contains(TEXT("别跟")) ||
+        PlayerText.Contains(TEXT("不要跟")) ||
+        PlayerText.Contains(TEXT("原地")) ||
+        PlayerText.Contains(TEXT("站住")) ||
+        PlayerText.Contains(TEXT("停下"));
+
+    if (bStopFollowIntent || (bFollowingPlayer && LowerText == TEXT("stop")))
+    {
+        StopFollowingPlayer();
+        OutReply = TEXT("I'll stay here.");
+        return true;
+    }
+
+    const bool bRunIntent =
+        LowerText.Contains(TEXT("run")) ||
+        LowerText.Contains(TEXT("hurry")) ||
+        LowerText.Contains(TEXT("faster")) ||
+        LowerText.Contains(TEXT("quick")) ||
+        LowerText.Contains(TEXT("catch up")) ||
+        PlayerText.Contains(TEXT("跑")) ||
+        PlayerText.Contains(TEXT("快点")) ||
+        PlayerText.Contains(TEXT("快些"));
+
+    const bool bWalkIntent =
+        LowerText.Contains(TEXT("walk")) ||
+        LowerText.Contains(TEXT("slow down")) ||
+        LowerText.Contains(TEXT("slower")) ||
+        PlayerText.Contains(TEXT("走")) ||
+        PlayerText.Contains(TEXT("慢点")) ||
+        PlayerText.Contains(TEXT("慢些"));
+
+    const bool bFollowIntent =
+        LowerText.Contains(TEXT("follow me")) ||
+        LowerText.Contains(TEXT("follow with me")) ||
+        LowerText.Contains(TEXT("come with me")) ||
+        LowerText.Contains(TEXT("come after me")) ||
+        LowerText.Contains(TEXT("stay with me")) ||
+        LowerText.Contains(TEXT("walk with me")) ||
+        LowerText.Contains(TEXT("run with me")) ||
+        PlayerText.Contains(TEXT("跟着我")) ||
+        PlayerText.Contains(TEXT("跟随我")) ||
+        PlayerText.Contains(TEXT("跟我")) ||
+        PlayerText.Contains(TEXT("跟上")) ||
+        PlayerText.Contains(TEXT("跟过来"));
+
+    const bool bJumpIntent =
+        LowerText.Contains(TEXT("jump")) ||
+        LowerText.Contains(TEXT("hop")) ||
+        PlayerText.Contains(TEXT("跳"));
+
+    if (bJumpIntent)
+    {
+        PlayJumpAction();
+        OutReply = TEXT("Sure.");
+        return true;
+    }
+
+    if (bFollowIntent || (bFollowingPlayer && (bRunIntent || bWalkIntent)))
+    {
+        const bool bUseRun = bRunIntent || LowerText.Contains(TEXT("run with me"));
+        StartFollowingPlayer(bUseRun);
+        OutReply = bUseRun
+            ? TEXT("I'll keep up with you.")
+            : TEXT("I'll follow you.");
+        return true;
+    }
+
+    if (bRunIntent && !bFollowingPlayer)
+    {
+        StartFollowingPlayer(true);
+        OutReply = TEXT("I'll keep up with you.");
+        return true;
+    }
+
+    if (bWalkIntent && !bFollowingPlayer)
+    {
+        StartFollowingPlayer(false);
+        OutReply = TEXT("I'll follow you.");
+        return true;
+    }
+
+    return false;
+}
+
+void UOpenAIJackComponent::SpeakLocalActionReply(
+    const FString& PlayerText,
+    const FString& ReplyText
+)
+{
+    const FString TrimmedReply = ReplyText.TrimStartAndEnd();
+    if (TrimmedReply.IsEmpty())
+    {
+        return;
+    }
+
+    ResetSpeechQueue();
+    bBusy = true;
+    AddConversationTurn(PlayerText, TrimmedReply);
+    OnReplyText.Broadcast(TrimmedReply);
+
+    UE_LOG(LogTemp, Display, TEXT("JACK_ACTION_REPLY %s"), *TrimmedReply);
+
+    if (bEnableQueuedSpeech && bEnableHttpTTS)
+    {
+        bFinalSpeechQueuedForCurrentTurn = true;
+        if (UWorld* World = GetWorld())
+        {
+            World->GetTimerManager().ClearTimer(
+                InstantAcknowledgementTimerHandle
+            );
+        }
+        EnqueueSpeechText(TrimmedReply);
+        bFinalReplyReadyForCurrentTurn = true;
+        PumpSpeechQueue();
+    }
+    else if (bEnableHttpTTS)
+    {
+        RequestHttpSpeech(TrimmedReply);
+    }
+    else if (bEnableWindowsTTS)
+    {
+        RequestWindowsSpeech(TrimmedReply);
+    }
+    else if (bEnableOpenAITTS)
+    {
+        if (GetApiKey().IsEmpty())
+        {
+            Fail(TEXT("OPENAI_API_KEY is required when OpenAI TTS is enabled."));
+            return;
+        }
+        RequestSpeech(TrimmedReply);
+    }
+    else
+    {
+        bBusy = false;
+    }
+}
+
+void UOpenAIJackComponent::UpdateActionMovement(float DeltaTime)
+{
+    if (!bFollowingPlayer || DeltaTime <= 0.0f)
+    {
+        return;
+    }
+
+    AActor* Owner = GetOwner();
+    if (!IsValid(Owner))
+    {
+        return;
+    }
+
+    AActor* Target = FollowTargetActor.Get();
+    if (!IsValid(Target))
+    {
+        Target = ResolveFollowTarget();
+        FollowTargetActor = Target;
+    }
+    if (!IsValid(Target))
+    {
+        if (!bActionJumpInProgress)
+        {
+            PlayActionAnimation(EActionAnimationState::Idle, true);
+        }
+        return;
+    }
+
+    const FVector OwnerLocation = Owner->GetActorLocation();
+    const FVector TargetLocation = Target->GetActorLocation();
+    FVector ToTarget = TargetLocation - OwnerLocation;
+    ToTarget.Z = 0.0f;
+
+    const float Distance = ToTarget.Size();
+    const float StopDistance = FMath::Max(40.0f, FollowStopDistance);
+    if (Distance <= StopDistance)
+    {
+        if (!bActionJumpInProgress)
+        {
+            PlayActionAnimation(EActionAnimationState::Idle, true);
+        }
+        if (Distance > 20.0f)
+        {
+            const FRotator DesiredRotation = ToTarget.GetSafeNormal2D().Rotation();
+            const FRotator CurrentRotation = Owner->GetActorRotation();
+            Owner->SetActorRotation(FMath::RInterpTo(
+                CurrentRotation,
+                FRotator(
+                    CurrentRotation.Pitch,
+                    DesiredRotation.Yaw + ActionFacingYawOffsetDegrees,
+                    CurrentRotation.Roll
+                ),
+                DeltaTime,
+                FMath::Max(0.1f, FollowRotationInterpSpeed)
+            ));
+        }
+        return;
+    }
+
+    const FVector MoveDirection = ToTarget.GetSafeNormal2D();
+    const bool bShouldRun =
+        bFollowUsingRun ||
+        Distance >= FMath::Max(StopDistance, FollowRunDistance);
+    const float Speed = bShouldRun
+        ? FMath::Max(20.0f, FollowRunSpeed)
+        : FMath::Max(20.0f, FollowWalkSpeed);
+    const float MoveDistance =
+        FMath::Min(Distance - StopDistance, Speed * DeltaTime);
+    const FVector NewLocation =
+        OwnerLocation + MoveDirection * FMath::Max(0.0f, MoveDistance);
+
+    Owner->SetActorLocation(NewLocation, true);
+
+    const FRotator DesiredRotation = MoveDirection.Rotation();
+    const FRotator CurrentRotation = Owner->GetActorRotation();
+    Owner->SetActorRotation(FMath::RInterpTo(
+        CurrentRotation,
+        FRotator(
+            CurrentRotation.Pitch,
+            DesiredRotation.Yaw + ActionFacingYawOffsetDegrees,
+            CurrentRotation.Roll
+        ),
+        DeltaTime,
+        FMath::Max(0.1f, FollowRotationInterpSpeed)
+    ));
+
+    if (!bActionJumpInProgress)
+    {
+        PlayActionAnimation(
+            bShouldRun
+                ? EActionAnimationState::Run
+                : EActionAnimationState::Walk,
+            true
+        );
+    }
+}
+
+void UOpenAIJackComponent::UpdateActionJump(float DeltaTime)
+{
+    if (!bActionJumpInProgress || DeltaTime <= 0.0f)
+    {
+        return;
+    }
+
+    AActor* Owner = GetOwner();
+    if (!IsValid(Owner))
+    {
+        bActionJumpInProgress = false;
+        return;
+    }
+
+    const float DurationSeconds =
+        FMath::Max(0.2f, ActionJumpActiveDurationSeconds);
+    ActionJumpElapsedSeconds += DeltaTime;
+
+    const float Alpha = FMath::Clamp(
+        ActionJumpElapsedSeconds / DurationSeconds,
+        0.0f,
+        1.0f
+    );
+    const float Height =
+        FMath::Sin(Alpha * UE_PI) * FMath::Max(0.0f, ActionJumpHeight);
+
+    FVector Location = Owner->GetActorLocation();
+    Location.Z = ActionJumpBaseZ + Height;
+    Owner->SetActorLocation(Location, true);
+
+    if (Alpha >= 1.0f - UE_KINDA_SMALL_NUMBER)
+    {
+        Location = Owner->GetActorLocation();
+        Location.Z = ActionJumpBaseZ;
+        Owner->SetActorLocation(Location, true);
+        bActionJumpInProgress = false;
+        ActionJumpElapsedSeconds = 0.0f;
+
+        UE_LOG(LogTemp, Display, TEXT("JACK_ACTION jump landed"));
+    }
+}
+
+AActor* UOpenAIJackComponent::ResolveFollowTarget() const
+{
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return nullptr;
+    }
+
+    if (APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(World, 0))
+    {
+        return PlayerPawn;
+    }
+
+    if (APlayerController* PlayerController =
+            UGameplayStatics::GetPlayerController(World, 0))
+    {
+        return PlayerController->GetViewTarget();
+    }
+
+    return nullptr;
+}
+
+TArray<USkeletalMeshComponent*> UOpenAIJackComponent::ResolveActionAnimationMeshes()
+{
+    TArray<USkeletalMeshComponent*> Result;
+
+    bool bCacheValid = !ActionAnimationMeshes.IsEmpty();
+    for (const TWeakObjectPtr<USkeletalMeshComponent>& MeshPtr :
+         ActionAnimationMeshes)
+    {
+        if (USkeletalMeshComponent* Mesh = MeshPtr.Get())
+        {
+            Result.Add(Mesh);
+        }
+        else
+        {
+            bCacheValid = false;
+        }
+    }
+
+    if (bCacheValid && !Result.IsEmpty())
+    {
+        return Result;
+    }
+
+    ActionAnimationMeshes.Reset();
+    Result.Reset();
+
+    AActor* Owner = GetOwner();
+    if (!IsValid(Owner))
+    {
+        return Result;
+    }
+
+    TArray<USkeletalMeshComponent*> Meshes;
+    Owner->GetComponents<USkeletalMeshComponent>(Meshes);
+    for (USkeletalMeshComponent* Mesh : Meshes)
+    {
+        if (ShouldUseMeshForActionAnimation(Mesh))
+        {
+            ActionAnimationMeshes.Add(Mesh);
+            Result.Add(Mesh);
+        }
+    }
+
+    if (Result.IsEmpty())
+    {
+        for (USkeletalMeshComponent* Mesh : Meshes)
+        {
+            if (IsValid(Mesh) &&
+                !Mesh->GetName().Contains(
+                    TEXT("Face"),
+                    ESearchCase::IgnoreCase
+                ))
+            {
+                ActionAnimationMeshes.Add(Mesh);
+                Result.Add(Mesh);
+                break;
+            }
+        }
+    }
+
+    UE_LOG(
+        LogTemp,
+        Display,
+        TEXT("JACK_ACTION animation_meshes count=%d"),
+        Result.Num()
+    );
+
+    return Result;
+}
+
+bool UOpenAIJackComponent::ShouldUseMeshForActionAnimation(
+    const USkeletalMeshComponent* Mesh
+) const
+{
+    if (!IsValid(Mesh))
+    {
+        return false;
+    }
+
+    const FString MeshName = Mesh->GetName();
+    if (MeshName.Contains(TEXT("Face"), ESearchCase::IgnoreCase))
+    {
+        return false;
+    }
+
+    if (MeshName.Contains(TEXT("Body"), ESearchCase::IgnoreCase) ||
+        MeshName.Contains(TEXT("SkeletalMesh"), ESearchCase::IgnoreCase))
+    {
+        return true;
+    }
+
+    const FString Hint = ActionBodyMeshNameHint.TrimStartAndEnd();
+    return !Hint.IsEmpty() &&
+        MeshName.Contains(Hint, ESearchCase::IgnoreCase);
+}
+
+void UOpenAIJackComponent::PlayActionAnimation(
+    EActionAnimationState State,
+    bool bLooping
+)
+{
+    if (!bUseActionAnimationOverride ||
+        State == EActionAnimationState::None ||
+        CurrentActionAnimationState == State)
+    {
+        return;
+    }
+
+    UAnimSequence* Animation = ResolveActionAnimation(State);
+    if (!Animation)
+    {
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("JACK_ACTION animation_missing state=%d"),
+            static_cast<int32>(State)
+        );
+        return;
+    }
+
+    TArray<USkeletalMeshComponent*> Meshes = ResolveActionAnimationMeshes();
+    if (Meshes.IsEmpty())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("JACK_ACTION animation_mesh_missing"));
+        return;
+    }
+
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(ActionAnimationTimerHandle);
+    }
+
+    if (!bActionAnimationStateSaved)
+    {
+        SavedActionAnimationMeshStates.Reset();
+        for (USkeletalMeshComponent* Mesh : Meshes)
+        {
+            if (!IsValid(Mesh))
+            {
+                continue;
+            }
+
+            FActionAnimationMeshState MeshState;
+            MeshState.Mesh = Mesh;
+            MeshState.SavedAnimationMode = Mesh->GetAnimationMode();
+            MeshState.SavedAnimClass = Mesh->GetAnimClass();
+            SavedActionAnimationMeshStates.Add(MeshState);
+        }
+        bActionAnimationStateSaved = true;
+    }
+
+    for (USkeletalMeshComponent* Mesh : Meshes)
+    {
+        if (IsValid(Mesh))
+        {
+            Mesh->PlayAnimation(Animation, bLooping);
+        }
+    }
+    CurrentActionAnimationState = State;
+
+    UE_LOG(
+        LogTemp,
+        Display,
+        TEXT("JACK_ACTION animation state=%d loop=%d asset=%s meshes=%d"),
+        static_cast<int32>(State),
+        bLooping ? 1 : 0,
+        *Animation->GetPathName(),
+        Meshes.Num()
+    );
+}
+
+void UOpenAIJackComponent::RestoreActionAnimation()
+{
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(ActionAnimationTimerHandle);
+    }
+
+    if (bActionAnimationStateSaved)
+    {
+        for (const FActionAnimationMeshState& MeshState :
+             SavedActionAnimationMeshStates)
+        {
+            USkeletalMeshComponent* Mesh = MeshState.Mesh.Get();
+            if (!IsValid(Mesh))
+            {
+                continue;
+            }
+
+            Mesh->SetAnimationMode(MeshState.SavedAnimationMode);
+            if (MeshState.SavedAnimationMode ==
+                EAnimationMode::AnimationBlueprint)
+            {
+                Mesh->SetAnimInstanceClass(MeshState.SavedAnimClass);
+            }
+        }
+    }
+
+    bActionAnimationStateSaved = false;
+    SavedActionAnimationMeshStates.Reset();
+    CurrentActionAnimationState = EActionAnimationState::None;
+}
+
+UAnimSequence* UOpenAIJackComponent::ResolveActionAnimation(
+    EActionAnimationState State
+) const
+{
+    switch (State)
+    {
+    case EActionAnimationState::Idle:
+        return IdleAnimation.LoadSynchronous();
+    case EActionAnimationState::Walk:
+        return WalkAnimation.LoadSynchronous();
+    case EActionAnimationState::Run:
+        return RunAnimation.LoadSynchronous();
+    case EActionAnimationState::Jump:
+        return JumpAnimation.LoadSynchronous();
+    default:
+        return nullptr;
+    }
+}
+
 int32 UOpenAIJackComponent::GetConversationTurnCount() const
 {
     return ConversationHistory.Num() / 2;
@@ -810,6 +1560,20 @@ void UOpenAIJackComponent::RequestResponse(
         CharacterInstructions
     );
     Messages.Add(MakeShared<FJsonValueObject>(SystemMessage));
+
+    if (bEnableWorldState && IsValid(WorldStateAgent))
+    {
+        WorldStateAgent->RefreshWorldState();
+        TSharedRef<FJsonObject> WorldMessage = MakeShared<FJsonObject>();
+        WorldMessage->SetStringField(TEXT("role"), TEXT("system"));
+        WorldMessage->SetStringField(
+            TEXT("content"),
+            TEXT("Use this live world state when discussing nearby objects. ")
+            TEXT("The listed actions are capabilities, not completed events.\n") +
+            WorldStateAgent->GetWorldStateText()
+        );
+        Messages.Add(MakeShared<FJsonValueObject>(WorldMessage));
+    }
 
     if (!RelevantPastMessages.IsEmpty())
     {

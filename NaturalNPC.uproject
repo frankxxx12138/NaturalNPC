@@ -61,6 +61,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "NaturalNPCWorldState",
+			"Enabled": true
+		},
+		{
 			"Name": "OpenAIJackNPC",
 			"Enabled": true
 		},

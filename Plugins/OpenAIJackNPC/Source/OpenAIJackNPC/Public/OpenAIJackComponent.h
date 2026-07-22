@@ -1,15 +1,20 @@
 #pragma once
 
 #include "Components/ActorComponent.h"
+#include "Components/SkinnedMeshComponent.h"
 #include "InputCoreTypes.h"
 #include "TimerManager.h"
+#include "UObject/SoftObjectPtr.h"
 #include "OpenAIJackComponent.generated.h"
 
 class UAudioComponent;
 class UAsyncActionAnimateCharacter;
 class UACEAudioCurveSourceComponent;
+class UAnimSequence;
+class AActor;
 class USkeletalMeshComponent;
 class USoundWaveProcedural;
+class UNPCWorldStateAgentComponent;
 class SOverlay;
 class STextBlock;
 
@@ -220,6 +225,93 @@ public:
         meta = (ClampMin = "0.0", ClampMax = "240.0"))
     float SubtitleBottomPadding = 96.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions")
+    bool bEnableNaturalLanguageActions = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack World State")
+    bool bEnableWorldState = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack World State")
+    bool bEnableWorldStateNaturalLanguageActions = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack World State",
+        meta = (ClampMin = "0.0"))
+    float WorldStatePerceptionRadius = 2500.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions")
+    bool bUseActionAnimationOverride = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions")
+    FString ActionBodyMeshNameHint = TEXT("Body");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "20.0", ClampMax = "1000.0"))
+    float FollowWalkSpeed = 140.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "20.0", ClampMax = "1500.0"))
+    float FollowRunSpeed = 360.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "40.0", ClampMax = "1000.0"))
+    float FollowStopDistance = 180.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "60.0", ClampMax = "1400.0"))
+    float FollowRunDistance = 650.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "0.1", ClampMax = "30.0"))
+    float FollowRotationInterpSpeed = 8.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "-180.0", ClampMax = "180.0"))
+    float ActionFacingYawOffsetDegrees = -90.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "0.0", ClampMax = "300.0"))
+    float ActionJumpHeight = 120.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "0.2", ClampMax = "3.0"))
+    float ActionJumpDurationSeconds = 0.8f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions")
+    TSoftObjectPtr<UAnimSequence> IdleAnimation =
+        TSoftObjectPtr<UAnimSequence>(
+            FSoftObjectPath(TEXT(
+                "/Game/MetaHumans/Human2/Animations/Locomotion/"
+                "Human2_MM_Idle.Human2_MM_Idle"
+            ))
+        );
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions")
+    TSoftObjectPtr<UAnimSequence> WalkAnimation =
+        TSoftObjectPtr<UAnimSequence>(
+            FSoftObjectPath(TEXT(
+                "/Game/MetaHumans/Human2/Animations/Locomotion/"
+                "Human2_MF_Unarmed_Walk_Fwd.Human2_MF_Unarmed_Walk_Fwd"
+            ))
+        );
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions")
+    TSoftObjectPtr<UAnimSequence> RunAnimation =
+        TSoftObjectPtr<UAnimSequence>(
+            FSoftObjectPath(TEXT(
+                "/Game/MetaHumans/Human2/Animations/Locomotion/"
+                "Human2_MF_Unarmed_Jog_Fwd.Human2_MF_Unarmed_Jog_Fwd"
+            ))
+        );
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions")
+    TSoftObjectPtr<UAnimSequence> JumpAnimation =
+        TSoftObjectPtr<UAnimSequence>(
+            FSoftObjectPath(TEXT(
+                "/Game/MetaHumans/Human2/Animations/Locomotion/"
+                "Human2_MM_Jump.Human2_MM_Jump"
+            ))
+        );
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack",
         meta = (MultiLine = true))
     FString CharacterInstructions =
@@ -306,6 +398,29 @@ public:
     UFUNCTION(BlueprintPure, Category = "Local AI|Jack")
     bool IsBusy() const { return bBusy; }
 
+    UFUNCTION(BlueprintCallable, Category = "Local AI|Jack Actions")
+    void StartFollowingPlayer(bool bRun);
+
+    UFUNCTION(BlueprintCallable, Category = "Local AI|Jack Actions")
+    void StopFollowingPlayer();
+
+    UFUNCTION(BlueprintCallable, Category = "Local AI|Jack Actions")
+    void PlayJumpAction();
+
+    UFUNCTION(BlueprintPure, Category = "Local AI|Jack Actions")
+    bool IsFollowingPlayer() const { return bFollowingPlayer; }
+
+    UFUNCTION(BlueprintPure, Category = "Local AI|Jack World State")
+    FString GetWorldStateJson() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Local AI|Jack World State")
+    bool ExecuteWorldAction(
+        FName ObjectId,
+        FName ActionId,
+        const FString& Parameters,
+        FString& OutMessage
+    );
+
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -340,7 +455,43 @@ private:
         bool bTTSFailed = false;
     };
 
+    enum class EActionAnimationState : uint8
+    {
+        None,
+        Idle,
+        Walk,
+        Run,
+        Jump
+    };
+
+    struct FActionAnimationMeshState
+    {
+        TWeakObjectPtr<USkeletalMeshComponent> Mesh;
+        EAnimationMode::Type SavedAnimationMode =
+            EAnimationMode::AnimationBlueprint;
+        UClass* SavedAnimClass = nullptr;
+    };
+
     FString GetApiKey() const;
+    bool TryHandleNaturalLanguageAction(
+        const FString& PlayerText,
+        FString& OutReply
+    );
+    void SpeakLocalActionReply(
+        const FString& PlayerText,
+        const FString& ReplyText
+    );
+    void UpdateActionMovement(float DeltaTime);
+    void UpdateActionJump(float DeltaTime);
+    void EnsureWorldStateAgent();
+    AActor* ResolveFollowTarget() const;
+    TArray<USkeletalMeshComponent*> ResolveActionAnimationMeshes();
+    bool ShouldUseMeshForActionAnimation(
+        const USkeletalMeshComponent* Mesh
+    ) const;
+    void PlayActionAnimation(EActionAnimationState State, bool bLooping);
+    void RestoreActionAnimation();
+    UAnimSequence* ResolveActionAnimation(EActionAnimationState State) const;
     void RequestRelevantMemory(const FString& PlayerText);
     void RequestResponse(
         const FString& PlayerText,
@@ -432,6 +583,9 @@ private:
     TObjectPtr<UACEAudioCurveSourceComponent> ACECurveSource;
 
     UPROPERTY(Transient)
+    TObjectPtr<UNPCWorldStateAgentComponent> WorldStateAgent;
+
+    UPROPERTY(Transient)
     TObjectPtr<USkeletalMeshComponent> ACEFaceMesh;
 
     FString PendingACEDeletePath;
@@ -451,6 +605,18 @@ private:
     bool bFinalSpeechQueuedForCurrentTurn = false;
     bool bACEWarmupInFlight = false;
     bool bSubtitleWidgetAdded = false;
+    bool bFollowingPlayer = false;
+    bool bFollowUsingRun = false;
+    bool bActionJumpInProgress = false;
+    bool bActionAnimationStateSaved = false;
+    float ActionJumpElapsedSeconds = 0.0f;
+    float ActionJumpActiveDurationSeconds = 0.0f;
+    float ActionJumpBaseZ = 0.0f;
+    TWeakObjectPtr<AActor> FollowTargetActor;
+    TArray<TWeakObjectPtr<USkeletalMeshComponent>> ActionAnimationMeshes;
+    TArray<FActionAnimationMeshState> SavedActionAnimationMeshStates;
+    EActionAnimationState CurrentActionAnimationState =
+        EActionAnimationState::None;
     FString PendingQueuedACESubtitleText;
     float PendingQueuedACESubtitleDurationSeconds = 0.0f;
     TSharedPtr<SOverlay> SubtitleRootWidget;
@@ -458,6 +624,7 @@ private:
     FTimerHandle InstantAcknowledgementTimerHandle;
     FTimerHandle ACEWarmupTimerHandle;
     FTimerHandle SubtitleTimerHandle;
+    FTimerHandle ActionAnimationTimerHandle;
     void* WindowsSTTRecognizer = nullptr;
     void* WindowsSTTAudioInput = nullptr;
     void* WindowsSTTContext = nullptr;

@@ -1,0 +1,18 @@
+{
+	"RemapUnityFiles": 
+	{
+		"Module.NaturalNPCWorldState.cpp.obj": [
+			"NaturalNPCWorldState.init.gen.cpp.obj",
+			"NPCWorldActionTarget.gen.cpp.obj",
+			"NPCWorldStateAgentComponent.gen.cpp.obj",
+			"NPCWorldStateObjectComponent.gen.cpp.obj",
+			"NPCWorldStateSubsystem.gen.cpp.obj",
+			"NPCWorldStateTypes.gen.cpp.obj",
+			"PerModuleInline.gen.cpp.obj",
+			"NaturalNPCWorldStateModule.cpp.obj",
+			"NPCWorldStateAgentComponent.cpp.obj",
+			"NPCWorldStateObjectComponent.cpp.obj",
+			"NPCWorldStateSubsystem.cpp.obj"
+		]
+	}
+}
