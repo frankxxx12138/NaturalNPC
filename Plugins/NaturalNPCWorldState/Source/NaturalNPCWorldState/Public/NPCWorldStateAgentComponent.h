@@ -92,6 +92,26 @@ public:
     float PickupApproachRotationSpeed = 8.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Approach",
+        meta = (ClampMin = "0.05", ClampMax = "2.0", Units = "s"))
+    float PickupApproachRepathIntervalSeconds = 0.35f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Approach",
+        meta = (ClampMin = "0.05", ClampMax = "2.0", Units = "s"))
+    float PickupApproachStallSeconds = 0.35f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Approach",
+        meta = (ClampMin = "4", ClampMax = "32"))
+    int32 PickupApproachCandidateCount = 16;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Approach",
+        meta = (ClampMin = "1", ClampMax = "10"))
+    int32 MaximumPickupApproachRepathFailures = 3;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
         Category = "NPC World State|Approach")
     float PickupFacingYawOffsetDegrees = -90.0f;
 
@@ -113,6 +133,10 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
         Category = "NPC World State|Animation")
+    TSoftObjectPtr<UAnimSequence> DefaultHeldWalkAnimation;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation")
     TSoftObjectPtr<UAnimSequence> DefaultThrowAnimation;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
@@ -126,6 +150,30 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
         Category = "NPC World State|Animation")
     TSoftObjectPtr<UAnimSequence> PickupApproachRunAnimation;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Adaptive Pickup")
+    bool bEnableAdaptivePickupIK = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Adaptive Pickup",
+        meta = (ClampMin = "0.05", ClampMax = "0.45"))
+    float AdaptivePickupIKBlendWindow = 0.22f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Adaptive Pickup",
+        meta = (ClampMin = "0.0", ClampMax = "0.75"))
+    float AdaptivePickupPelvisInfluence = 0.30f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Adaptive Pickup",
+        meta = (ClampMin = "0.0", ClampMax = "65.0", Units = "cm"))
+    float AdaptivePickupMaxPelvisOffset = 40.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Adaptive Pickup",
+        meta = (ClampMin = "1.0", ClampMax = "1.2"))
+    float AdaptivePickupMaxArmStretch = 1.08f;
 
     UPROPERTY(BlueprintAssignable, Category = "NPC World State")
     FNPCWorldStateUpdatedEvent OnWorldStateUpdated;
@@ -159,6 +207,23 @@ public:
         FString& OutReply
     );
 
+    bool TryExecuteNaturalLanguageActionDetailed(
+        const FString& Command,
+        FString& OutReply,
+        FString& OutRemainingCommand
+    );
+
+    bool IsNaturalLanguageActionSequenceInProgress() const
+    {
+        return bNaturalLanguageSequenceActive || bActionInProgress ||
+            !QueuedNaturalLanguageActions.IsEmpty();
+    }
+
+    bool WasLastNaturalLanguageActionSequenceSuccessful() const
+    {
+        return bLastNaturalLanguageSequenceSucceeded;
+    }
+
     UFUNCTION(BlueprintPure, Category = "NPC World State")
     AActor* GetHeldActor() const { return HeldActor.Get(); }
 
@@ -167,6 +232,18 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "NPC World State")
     bool DropHeldActor(bool bThrow, FNPCWorldActionResult& OutResult);
+
+    UFUNCTION(BlueprintPure, Category = "NPC World State|Animation")
+    UAnimSequence* GetHeldWalkAnimation() const;
+
+    UFUNCTION(BlueprintPure, Category = "NPC World State|Animation")
+    UAnimSequence* GetCurrentHeldIdleAnimation() const;
+
+    UFUNCTION(BlueprintCallable, Category = "NPC World State|Animation")
+    void SuspendHeldIdleAnimation();
+
+    UFUNCTION(BlueprintCallable, Category = "NPC World State|Animation")
+    bool ResumeHeldIdleAnimation();
 
 protected:
     virtual void BeginPlay() override;
@@ -192,6 +269,13 @@ private:
         TSubclassOf<UAnimInstance> AnimClass;
         EAnimationMode::Type AnimationMode =
             EAnimationMode::AnimationBlueprint;
+    };
+
+    struct FQueuedNaturalLanguageAction
+    {
+        FName ObjectId = NAME_None;
+        FName ActionId = NAME_None;
+        FString Parameters;
     };
 
     FNPCWorldActionResult MakeResult(
@@ -249,7 +333,10 @@ private:
         bool bLooping,
         float PlayRate,
         bool bReverse,
-        TArray<FActionAnimationMeshState>& SavedStates
+        TArray<FActionAnimationMeshState>& SavedStates,
+        AActor* AdaptivePickupTarget = nullptr,
+        float PickupContactNormalizedTime = 0.55f,
+        bool bUseSupportHand = false
     );
     FVector GetTargetInteractionLocation(AActor* Target) const;
     float GetPickupReachDistance(
@@ -262,6 +349,7 @@ private:
         const FString& Parameters,
         FNPCWorldActionResult& OutResult
     );
+    bool RebuildApproachPath(AActor* Target, float ReachDistance);
     void UpdateApproach(float DeltaTime);
     void UpdateApproachAnimation(bool bRun);
     void BeginPendingActionAtTarget();
@@ -275,7 +363,6 @@ private:
         const FNPCWorldActionDefinition& SourceAction,
         AActor* Target
     );
-    bool ResumeHeldIdleAnimation();
     void RestoreHeldAnimationState();
     void CancelPendingAction();
     FName ResolveActionIntent(const FString& Command) const;
@@ -284,6 +371,13 @@ private:
         const FString& Text,
         const TArray<FString>& Needles
     ) const;
+    TArray<FString> SplitNaturalLanguageActionClauses(
+        const FString& Command
+    ) const;
+    bool ContinueNaturalLanguageActionSequence(
+        FNPCWorldActionResult* OutFirstResult = nullptr
+    );
+    void FailNaturalLanguageActionSequence(const FString& Reason);
 
     FString CachedWorldStateJson;
     FString CachedWorldStateText;
@@ -296,6 +390,7 @@ private:
 
     bool bActionInProgress = false;
     bool bPendingEffectApplied = false;
+    bool bPendingEffectSucceeded = false;
     bool bApproachingActionTarget = false;
     FNPCWorldActionDefinition PendingAction;
     TWeakObjectPtr<AActor> PendingActionTarget;
@@ -306,10 +401,18 @@ private:
     int32 ApproachPathPointIndex = 0;
     float ApproachElapsedSeconds = 0.0f;
     float ApproachMovementZ = 0.0f;
+    float ApproachRepathElapsedSeconds = 0.0f;
+    float ApproachStallElapsedSeconds = 0.0f;
+    int32 ApproachRepathFailureCount = 0;
+    FVector ApproachLastTargetLocation = FVector::ZeroVector;
+    FVector ApproachGoalLocation = FVector::ZeroVector;
     TWeakObjectPtr<UAnimSequence> ActiveApproachAnimation;
     TWeakObjectPtr<UAnimSequence> ActiveHeldIdleAnimation;
     FNPCWorldActionDefinition HeldIdleSourceAction;
 
     TArray<FActionAnimationMeshState> ActionAnimationMeshStates;
     TArray<FActionAnimationMeshState> HeldAnimationMeshStates;
+    TArray<FQueuedNaturalLanguageAction> QueuedNaturalLanguageActions;
+    bool bNaturalLanguageSequenceActive = false;
+    bool bLastNaturalLanguageSequenceSucceeded = false;
 };

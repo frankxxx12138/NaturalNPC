@@ -1,5 +1,6 @@
 import argparse
 import json
+import multiprocessing
 import sys
 import threading
 import time
@@ -10,7 +11,6 @@ from urllib.parse import urlparse
 try:
     import numpy as np
     import sounddevice as sd
-    from faster_whisper import WhisperModel
 except Exception as exc:
     print(
         "Missing STT dependencies. Install them with:\n"
@@ -33,6 +33,98 @@ def normalize_language(language):
     if value.lower() in ("zh-cn", "zh-hans", "chinese"):
         return "zh"
     return value
+
+
+def stt_worker_main(connection, config):
+    """Load CTranslate2 only in a worker that can return all memory on exit."""
+    from faster_whisper import WhisperModel
+
+    model = None
+    idle_unload_seconds = config["idle_unload_seconds"]
+    try:
+        while True:
+            if idle_unload_seconds > 0.0:
+                if not connection.poll(idle_unload_seconds):
+                    print(
+                        f"Whisper worker exiting after "
+                        f"{idle_unload_seconds:.0f}s idle",
+                        flush=True,
+                    )
+                    return
+            request = connection.recv()
+            if request is None:
+                return
+
+            try:
+                if model is None:
+                    print(
+                        "Loading faster-whisper model on demand "
+                        f"model={config['model']} device={config['device']} "
+                        f"compute_type={config['compute_type']}...",
+                        flush=True,
+                    )
+                    model = WhisperModel(
+                        config["model"],
+                        device=config["device"],
+                        compute_type=config["compute_type"],
+                    )
+                    print("Whisper STT worker model loaded.", flush=True)
+
+                start = time.perf_counter()
+                segments, info = model.transcribe(
+                    request["audio"],
+                    language=normalize_language(request["language"]),
+                    beam_size=config["beam_size"],
+                    vad_filter=not config["no_vad_filter"],
+                    condition_on_previous_text=False,
+                    temperature=0.0,
+                )
+
+                segment_payloads = []
+                texts = []
+                for segment in segments:
+                    text = segment.text.strip()
+                    if text:
+                        texts.append(text)
+                    segment_payloads.append(
+                        {
+                            "start": segment.start,
+                            "end": segment.end,
+                            "text": text,
+                        }
+                    )
+
+                connection.send(
+                    {
+                        "ok": True,
+                        "result": {
+                            "text": " ".join(texts).strip(),
+                            "language": getattr(
+                                info,
+                                "language",
+                                request["language"] or "auto",
+                            ),
+                            "language_probability": getattr(
+                                info,
+                                "language_probability",
+                                0.0,
+                            ),
+                            "segments": segment_payloads,
+                            "stt_ms": (
+                                time.perf_counter() - start
+                            ) * 1000.0,
+                        },
+                    }
+                )
+            except Exception as exc:
+                connection.send({"ok": False, "error": str(exc)})
+    except (EOFError, BrokenPipeError, ConnectionResetError):
+        return
+    finally:
+        try:
+            connection.close()
+        except Exception:
+            pass
 
 
 class Recorder:
@@ -98,18 +190,71 @@ class STTState:
     def __init__(self, args):
         self.args = args
         self.recorder = Recorder(args.sample_rate)
-        print(
-            "Loading faster-whisper model "
-            f"model={args.model} device={args.device} "
-            f"compute_type={args.compute_type}...",
-            flush=True,
+        self.worker_lock = threading.Lock()
+        self.worker_process = None
+        self.worker_connection = None
+
+    def _stop_worker_locked(self, force):
+        connection = self.worker_connection
+        process = self.worker_process
+        self.worker_connection = None
+        self.worker_process = None
+
+        if connection is not None:
+            if not force:
+                try:
+                    connection.send(None)
+                except Exception:
+                    pass
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+        if process is not None:
+            if force and process.is_alive():
+                process.terminate()
+            process.join(timeout=5.0)
+            if process.is_alive():
+                process.kill()
+                process.join(timeout=2.0)
+
+    def _ensure_worker_locked(self):
+        if self.worker_process is not None and self.worker_process.is_alive():
+            return
+        if self.worker_process is not None or self.worker_connection is not None:
+            self._stop_worker_locked(force=False)
+
+        config = {
+            "model": self.args.model,
+            "device": self.args.device,
+            "compute_type": self.args.compute_type,
+            "beam_size": self.args.beam_size,
+            "no_vad_filter": self.args.no_vad_filter,
+            "idle_unload_seconds": max(0.0, self.args.idle_unload_seconds),
+        }
+        context = multiprocessing.get_context("spawn")
+        parent_connection, child_connection = context.Pipe(duplex=True)
+        process = context.Process(
+            target=stt_worker_main,
+            args=(child_connection, config),
+            name="WhisperSTTWorker",
+            daemon=True,
         )
-        self.model = WhisperModel(
-            args.model,
-            device=args.device,
-            compute_type=args.compute_type,
-        )
-        print("Whisper STT model loaded.", flush=True)
+        process.start()
+        child_connection.close()
+        self.worker_connection = parent_connection
+        self.worker_process = process
+        print(f"Whisper worker started pid={process.pid}", flush=True)
+
+    def is_model_loaded(self):
+        with self.worker_lock:
+            if self.worker_process is None:
+                return False
+            if self.worker_process.is_alive():
+                return True
+            self._stop_worker_locked(force=False)
+            return False
 
     def transcribe(self, audio, language):
         if audio.size == 0:
@@ -120,38 +265,28 @@ class STTState:
                 "duration": 0.0,
             }
 
-        start = time.perf_counter()
-        segments, info = self.model.transcribe(
-            audio,
-            language=normalize_language(language),
-            beam_size=self.args.beam_size,
-            vad_filter=not self.args.no_vad_filter,
-            condition_on_previous_text=False,
-            temperature=0.0,
-        )
+        with self.worker_lock:
+            self._ensure_worker_locked()
+            try:
+                self.worker_connection.send(
+                    {"audio": audio, "language": language}
+                )
+                if not self.worker_connection.poll(self.args.worker_timeout_seconds):
+                    raise TimeoutError("Whisper worker exceeded the timeout")
+                response = self.worker_connection.recv()
+            except Exception:
+                self._stop_worker_locked(force=True)
+                raise
 
-        segment_payloads = []
-        texts = []
-        for segment in segments:
-            text = segment.text.strip()
-            if text:
-                texts.append(text)
-            segment_payloads.append(
-                {
-                    "start": segment.start,
-                    "end": segment.end,
-                    "text": text,
-                }
-            )
+            if not response.get("ok"):
+                error = response.get("error", "Unknown Whisper worker error")
+                self._stop_worker_locked(force=True)
+                raise RuntimeError(error)
+            return response["result"]
 
-        text = " ".join(texts).strip()
-        return {
-            "text": text,
-            "language": getattr(info, "language", language or "auto"),
-            "language_probability": getattr(info, "language_probability", 0.0),
-            "segments": segment_payloads,
-            "stt_ms": (time.perf_counter() - start) * 1000.0,
-        }
+    def shutdown(self):
+        with self.worker_lock:
+            self._stop_worker_locked(force=True)
 
 
 def make_handler(state):
@@ -163,9 +298,7 @@ def make_handler(state):
             if length <= 0:
                 return {}
             raw = self.rfile.read(length).decode("utf-8")
-            if not raw:
-                return {}
-            return json.loads(raw)
+            return json.loads(raw) if raw else {}
 
         def _send_json(self, code, payload):
             encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -185,6 +318,7 @@ def make_handler(state):
                         "model": state.args.model,
                         "device": state.args.device,
                         "sample_rate": state.args.sample_rate,
+                        "model_loaded": state.is_model_loaded(),
                     },
                 )
                 return
@@ -229,10 +363,7 @@ def make_handler(state):
                 self._send_json(500, {"error": str(exc)})
 
         def log_message(self, fmt, *args):
-            print(
-                f"{self.address_string()} - {fmt % args}",
-                flush=True,
-            )
+            print(f"{self.address_string()} - {fmt % args}", flush=True)
 
     return Handler
 
@@ -248,16 +379,24 @@ def main():
     parser.add_argument("--sample-rate", type=int, default=16000)
     parser.add_argument("--beam-size", type=int, default=1)
     parser.add_argument("--no-vad-filter", action="store_true")
+    parser.add_argument("--idle-unload-seconds", type=float, default=60.0)
+    parser.add_argument("--worker-timeout-seconds", type=float, default=120.0)
     args = parser.parse_args()
+    args.worker_timeout_seconds = max(10.0, args.worker_timeout_seconds)
 
     state = STTState(args)
     server = ThreadingHTTPServer((args.host, args.port), make_handler(state))
+    server.daemon_threads = True
     print(
         f"Whisper STT listening on http://{args.host}:{args.port}",
         flush=True,
     )
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        state.shutdown()
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     main()

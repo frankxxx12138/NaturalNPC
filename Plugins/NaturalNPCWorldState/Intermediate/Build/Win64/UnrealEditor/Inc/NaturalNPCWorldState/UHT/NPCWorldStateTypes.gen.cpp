@@ -45,6 +45,10 @@ struct Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics
 		{ "Category", "NPC World State|Animation" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateTypes.h" },
 	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_HeldWalkAnimation_MetaData[] = {
+		{ "Category", "NPC World State|Animation" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateTypes.h" },
+	};
 	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_DropAnimation_MetaData[] = {
 		{ "Category", "NPC World State|Animation" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateTypes.h" },
@@ -59,6 +63,11 @@ struct Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics
 		{ "ClampMin", "-1.0" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateTypes.h" },
 	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_PickupAnimationPlayRate_MetaData[] = {
+		{ "Category", "NPC World State|Animation" },
+		{ "ClampMin", "0.01" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateTypes.h" },
+	};
 	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_bCenterObjectBetweenHands_MetaData[] = {
 		{ "Category", "NPC World State|Animation" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateTypes.h" },
@@ -69,9 +78,11 @@ struct Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics
 	static const UECodeGen_Private::FNamePropertyParams NewProp_Category;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_PickupAnimation;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_HeldIdleAnimation;
+	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_HeldWalkAnimation;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_DropAnimation;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_ThrowAnimation;
 	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupEffectTriggerNormalizedTime;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupAnimationPlayRate;
 	static void NewProp_bCenterObjectBetweenHands_SetBit(void* Obj);
 	static const UECodeGen_Private::FBoolPropertyParams NewProp_bCenterObjectBetweenHands;
 	static const UECodeGen_Private::FPropertyParamsBase* const PropPointers[];
@@ -96,9 +107,11 @@ class UScriptStruct* FNPCWorldItemAnimationProfile::StaticStruct()
 const UECodeGen_Private::FNamePropertyParams Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_Category = { "Category", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Name, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(FNPCWorldItemAnimationProfile, Category), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_Category_MetaData), NewProp_Category_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_PickupAnimation = { "PickupAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(FNPCWorldItemAnimationProfile, PickupAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupAnimation_MetaData), NewProp_PickupAnimation_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_HeldIdleAnimation = { "HeldIdleAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(FNPCWorldItemAnimationProfile, HeldIdleAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_HeldIdleAnimation_MetaData), NewProp_HeldIdleAnimation_MetaData) };
+const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_HeldWalkAnimation = { "HeldWalkAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(FNPCWorldItemAnimationProfile, HeldWalkAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_HeldWalkAnimation_MetaData), NewProp_HeldWalkAnimation_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_DropAnimation = { "DropAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(FNPCWorldItemAnimationProfile, DropAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_DropAnimation_MetaData), NewProp_DropAnimation_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_ThrowAnimation = { "ThrowAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(FNPCWorldItemAnimationProfile, ThrowAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_ThrowAnimation_MetaData), NewProp_ThrowAnimation_MetaData) };
 const UECodeGen_Private::FFloatPropertyParams Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_PickupEffectTriggerNormalizedTime = { "PickupEffectTriggerNormalizedTime", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(FNPCWorldItemAnimationProfile, PickupEffectTriggerNormalizedTime), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupEffectTriggerNormalizedTime_MetaData), NewProp_PickupEffectTriggerNormalizedTime_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_PickupAnimationPlayRate = { "PickupAnimationPlayRate", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(FNPCWorldItemAnimationProfile, PickupAnimationPlayRate), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupAnimationPlayRate_MetaData), NewProp_PickupAnimationPlayRate_MetaData) };
 void Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_bCenterObjectBetweenHands_SetBit(void* Obj)
 {
 	((FNPCWorldItemAnimationProfile*)Obj)->bCenterObjectBetweenHands = 1;
@@ -108,9 +121,11 @@ const UECodeGen_Private::FPropertyParamsBase* const Z_Construct_UScriptStruct_FN
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_Category,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_PickupAnimation,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_HeldIdleAnimation,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_HeldWalkAnimation,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_DropAnimation,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_ThrowAnimation,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_PickupEffectTriggerNormalizedTime,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_PickupAnimationPlayRate,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewProp_bCenterObjectBetweenHands,
 };
 static_assert(UE_ARRAY_COUNT(Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::PropPointers) < 2048);
@@ -528,13 +543,13 @@ UScriptStruct* Z_Construct_UScriptStruct_FNPCWorldActionResult()
 struct Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h__Script_NaturalNPCWorldState_Statics
 {
 	static constexpr FStructRegisterCompiledInInfo ScriptStructInfo[] = {
-		{ FNPCWorldItemAnimationProfile::StaticStruct, Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewStructOps, TEXT("NPCWorldItemAnimationProfile"),&Z_Registration_Info_UScriptStruct_FNPCWorldItemAnimationProfile, CONSTRUCT_RELOAD_VERSION_INFO(FStructReloadVersionInfo, sizeof(FNPCWorldItemAnimationProfile), 2274357887U) },
+		{ FNPCWorldItemAnimationProfile::StaticStruct, Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile_Statics::NewStructOps, TEXT("NPCWorldItemAnimationProfile"),&Z_Registration_Info_UScriptStruct_FNPCWorldItemAnimationProfile, CONSTRUCT_RELOAD_VERSION_INFO(FStructReloadVersionInfo, sizeof(FNPCWorldItemAnimationProfile), 1233827653U) },
 		{ FNPCWorldActionDefinition::StaticStruct, Z_Construct_UScriptStruct_FNPCWorldActionDefinition_Statics::NewStructOps, TEXT("NPCWorldActionDefinition"),&Z_Registration_Info_UScriptStruct_FNPCWorldActionDefinition, CONSTRUCT_RELOAD_VERSION_INFO(FStructReloadVersionInfo, sizeof(FNPCWorldActionDefinition), 1722355823U) },
 		{ FNPCWorldObjectState::StaticStruct, Z_Construct_UScriptStruct_FNPCWorldObjectState_Statics::NewStructOps, TEXT("NPCWorldObjectState"),&Z_Registration_Info_UScriptStruct_FNPCWorldObjectState, CONSTRUCT_RELOAD_VERSION_INFO(FStructReloadVersionInfo, sizeof(FNPCWorldObjectState), 871788507U) },
 		{ FNPCWorldActionResult::StaticStruct, Z_Construct_UScriptStruct_FNPCWorldActionResult_Statics::NewStructOps, TEXT("NPCWorldActionResult"),&Z_Registration_Info_UScriptStruct_FNPCWorldActionResult, CONSTRUCT_RELOAD_VERSION_INFO(FStructReloadVersionInfo, sizeof(FNPCWorldActionResult), 3945505905U) },
 	};
 }; // Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h__Script_NaturalNPCWorldState_Statics 
-static FRegisterCompiledInInfo Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h__Script_NaturalNPCWorldState_2813682411{
+static FRegisterCompiledInInfo Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h__Script_NaturalNPCWorldState_757378434{
 	TEXT("/Script/NaturalNPCWorldState"),
 	nullptr, 0,
 	Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h__Script_NaturalNPCWorldState_Statics::ScriptStructInfo, UE_ARRAY_COUNT(Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h__Script_NaturalNPCWorldState_Statics::ScriptStructInfo),

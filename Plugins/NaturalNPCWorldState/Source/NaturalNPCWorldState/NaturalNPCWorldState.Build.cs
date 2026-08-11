@@ -11,6 +11,7 @@ public class NaturalNPCWorldState : ModuleRules
                 "Core",
                 "CoreUObject",
                 "Engine",
+                "AnimationCore",
                 "Json",
                 "NavigationSystem"
             }

@@ -16,6 +16,7 @@
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class AActor;
+class UAnimSequence;
 struct FNPCWorldActionResult;
 struct FNPCWorldObjectState;
 
@@ -35,6 +36,10 @@ NATURALNPCWORLDSTATE_API void FNPCWorldActionCompletedEvent_DelegateWrapper(cons
 
 // ********** Begin Class UNPCWorldStateAgentComponent *********************************************
 #define FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h_31_RPC_WRAPPERS_NO_PURE_DECLS \
+	DECLARE_FUNCTION(execResumeHeldIdleAnimation); \
+	DECLARE_FUNCTION(execSuspendHeldIdleAnimation); \
+	DECLARE_FUNCTION(execGetCurrentHeldIdleAnimation); \
+	DECLARE_FUNCTION(execGetHeldWalkAnimation); \
 	DECLARE_FUNCTION(execDropHeldActor); \
 	DECLARE_FUNCTION(execIsWorldActionInProgress); \
 	DECLARE_FUNCTION(execGetHeldActor); \

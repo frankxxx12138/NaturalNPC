@@ -37,6 +37,39 @@ class OPENAIJACKNPC_API UOpenAIJackComponent : public UActorComponent
 public:
     UOpenAIJackComponent();
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Identity")
+    FName NPCID = NAME_None;
+
+    UFUNCTION(BlueprintPure, Category = "Local AI|Identity")
+    FName GetResolvedNPCID() const;
+
+    UFUNCTION(BlueprintPure, Category = "Local AI|Memory Optimization")
+    FString GetEffectiveModelKeepAlive() const;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Autonomous Conversation")
+    bool bEnableAutonomousListening = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Autonomous Conversation",
+        meta = (ClampMin = "0.0", Units = "cm"))
+    float AutonomousListeningRadius = 1500.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Autonomous Conversation",
+        meta = (ClampMin = "40", ClampMax = "500"))
+    int32 MaximumAutonomousResponseCharacters = 240;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Autonomous Conversation",
+        meta = (MultiLine = true))
+    FString AutonomousKnowledgeSummary;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Autonomous Conversation",
+        meta = (MultiLine = true))
+    FString AutonomousInterestSummary;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack")
     FString Model = TEXT("gemma4:e4b");
 
@@ -54,6 +87,15 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Voice")
     bool bEnableACEAudio2Face = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Memory Optimization")
+    bool bReleaseACEResourcesWhenIdle = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Memory Optimization",
+        meta = (ClampMin = "5.0", ClampMax = "600.0", Units = "s"))
+    float ACEIdleReleaseSeconds = 60.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Voice")
     FName ACEAudio2FaceProviderName = TEXT("LocalA2F-Mark");
@@ -174,6 +216,14 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack")
     FString KeepAlive = TEXT("10m");
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Memory Optimization")
+    bool bUseMemoryOptimizedModelLifetime = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Memory Optimization")
+    FString ModelIdleKeepAlive = TEXT("60s");
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack",
         meta = (ClampMin = "1", ClampMax = "20"))
     int32 MaxConversationTurns = 8;
@@ -197,6 +247,10 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Memory")
     FString OllamaEmbedUrl = TEXT("http://127.0.0.1:11435/api/embed");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Memory Optimization")
+    bool bWarmEmbeddingModelOnBeginPlay = false;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack")
     FString SpeechModel = TEXT("gpt-4o-mini-tts");
@@ -265,6 +319,81 @@ public:
     float FollowRotationInterpSpeed = 8.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "0.0", ClampMax = "200.0", Units = "cm"))
+    float FollowResumeDistanceBuffer = 35.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Collision",
+        meta = (ClampMin = "10.0", ClampMax = "100.0", Units = "cm"))
+    float ActionCollisionRadius = 24.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Collision",
+        meta = (ClampMin = "40.0", ClampMax = "160.0", Units = "cm"))
+    float ActionCollisionHalfHeight = 90.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Collision",
+        meta = (ClampMin = "10.0", ClampMax = "90.0", Units = "deg"))
+    float ActionAvoidanceAngleDegrees = 55.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Navigation",
+        meta = (ClampMin = "30.0", ClampMax = "120.0", Units = "cm"))
+    float ActionFallbackGridSize = 60.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Navigation",
+        meta = (ClampMin = "0.0", ClampMax = "40.0", Units = "cm"))
+    float ActionNavigationClearancePadding = 10.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Navigation",
+        meta = (ClampMin = "200.0", ClampMax = "2000.0", Units = "cm"))
+    float ActionFallbackSearchMargin = 900.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Navigation",
+        meta = (ClampMin = "500", ClampMax = "20000"))
+    int32 ActionFallbackMaxExpandedNodes = 6000;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Grounding")
+    bool bEnableActionFootGrounding = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Grounding",
+        meta = (ClampMin = "0.0", ClampMax = "10.0", Units = "cm"))
+    float ActionFootGroundClearance = 1.5f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Grounding",
+        meta = (ClampMin = "1.0", ClampMax = "40.0"))
+    float ActionGroundingInterpSpeed = 18.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Grounding",
+        meta = (ClampMin = "20.0", ClampMax = "150.0", Units = "cm"))
+    float ActionGroundingMaxLift = 100.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Grounding",
+        meta = (ClampMin = "0.0", ClampMax = "100.0", Units = "cm"))
+    float ActionGroundingMaxDrop = 60.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Grounding",
+        meta = (ClampMin = "1.0", ClampMax = "40.0"))
+    float ActionActorGroundFollowInterpSpeed = 16.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Grounding",
+        meta = (ClampMin = "10.0", ClampMax = "100.0", Units = "cm"))
+    float ActionMaximumGroundStepUp = 45.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Grounding",
+        meta = (ClampMin = "20.0", ClampMax = "200.0", Units = "cm"))
+    float ActionMaximumGroundStepDown = 90.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "0.05", ClampMax = "2.0", Units = "s"))
+    float ActionNavigationRepathIntervalSeconds = 0.35f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "0.05", ClampMax = "2.0", Units = "s"))
+    float ActionNavigationStallSeconds = 0.35f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
+        meta = (ClampMin = "20.0", ClampMax = "150.0", Units = "cm"))
+    float ActionStepLengthCentimeters = 70.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions",
         meta = (ClampMin = "-180.0", ClampMax = "180.0"))
     float ActionFacingYawOffsetDegrees = -90.0f;
 
@@ -312,6 +441,73 @@ public:
             ))
         );
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting")
+    TSoftObjectPtr<UAnimSequence> SitDownAnimation =
+        TSoftObjectPtr<UAnimSequence>(
+            FSoftObjectPath(TEXT(
+                "/Game/MetaHumans/Human2/Animations/Actions/"
+                "Human2_SitDown.Human2_SitDown"
+            ))
+        );
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting")
+    TSoftObjectPtr<UAnimSequence> SitIdleAnimation =
+        TSoftObjectPtr<UAnimSequence>(
+            FSoftObjectPath(TEXT(
+                "/Game/MetaHumans/Human2/Animations/Actions/"
+                "Human2_SitIdle.Human2_SitIdle"
+            ))
+        );
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting")
+    TSoftObjectPtr<UAnimSequence> StandUpAnimation =
+        TSoftObjectPtr<UAnimSequence>(
+            FSoftObjectPath(TEXT(
+                "/Game/MetaHumans/Human2/Animations/Actions/"
+                "Human2_StandUp.Human2_StandUp"
+            ))
+        );
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting",
+        meta = (ClampMin = "40.0", ClampMax = "400.0", Units = "cm"))
+    float SitApproachStopDistance = 140.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting",
+        meta = (ClampMin = "100.0", ClampMax = "3000.0", Units = "cm"))
+    float SeatSearchRadius = 1000.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting",
+        meta = (ClampMin = "35.0", ClampMax = "150.0", Units = "cm"))
+    float SeatApproachDistance = 70.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting",
+        meta = (ClampMin = "0.0", ClampMax = "35.0", Units = "cm"))
+    float SeatPelvisAboveSurface = 8.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting",
+        meta = (ClampMin = "1.0", ClampMax = "30.0"))
+    float SeatAlignmentInterpSpeed = 8.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting",
+        meta = (ClampMin = "0.0", ClampMax = "30.0", Units = "s"))
+    float SitDownStartTimeSeconds = 3.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting",
+        meta = (ClampMin = "0.0", ClampMax = "30.0", Units = "s"))
+    float SitDownEndTimeSeconds = 4.4f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting",
+        meta = (ClampMin = "0.0", ClampMax = "30.0", Units = "s"))
+    float StandUpEndTimeSeconds = 2.4f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting",
+        meta = (ClampMin = "0.1", ClampMax = "3.0"))
+    float SitTransitionPlayRate = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Actions|Sitting",
+        meta = (ClampMin = "0.0", ClampMax = "200.0", Units = "cm"))
+    float StandUpForwardAdjustment = 59.0f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack",
         meta = (MultiLine = true))
     FString CharacterInstructions =
@@ -334,6 +530,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Local AI|Jack")
     void SendPlayerText(const FString& PlayerText);
+
+    UFUNCTION(BlueprintCallable, Category = "Local AI|Autonomous Conversation")
+    bool SpeakGovernedText(const FString& ResponseText);
+
+    UFUNCTION(BlueprintCallable, Category = "Local AI|Autonomous Conversation")
+    bool InterruptConversationOutput();
 
     UFUNCTION(BlueprintCallable, Category = "Local AI|Jack")
     void ClearConversation();
@@ -398,6 +600,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "Local AI|Jack")
     bool IsBusy() const { return bBusy; }
 
+    UFUNCTION(BlueprintPure, Category = "Local AI|Autonomous Conversation")
+    bool IsConversationOutputActive() const;
+
     UFUNCTION(BlueprintCallable, Category = "Local AI|Jack Actions")
     void StartFollowingPlayer(bool bRun);
 
@@ -407,8 +612,38 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Local AI|Jack Actions")
     void PlayJumpAction();
 
+    UFUNCTION(BlueprintCallable, Category = "Local AI|Jack Actions")
+    void PlaySitDownAction();
+
+    UFUNCTION(BlueprintCallable, Category = "Local AI|Jack Actions")
+    void PlayStandUpAction();
+
+    UFUNCTION(BlueprintPure, Category = "Local AI|Jack Actions")
+    bool IsSitting() const
+    {
+        return bIsSitting || bSitDownInProgress;
+    }
+
+    UFUNCTION(BlueprintCallable, Category = "Local AI|Jack Actions")
+    bool TryExecuteMovementCommand(
+        const FString& PlayerText,
+        FString& OutReply
+    );
+
     UFUNCTION(BlueprintPure, Category = "Local AI|Jack Actions")
     bool IsFollowingPlayer() const { return bFollowingPlayer; }
+
+    UFUNCTION(BlueprintPure, Category = "Local AI|Jack Actions")
+    bool IsExecutingMoveCommand() const
+    {
+        return bMovingToCommandLocation;
+    }
+
+    UFUNCTION(BlueprintPure, Category = "Local AI|Jack Actions")
+    FVector GetMoveCommandDestination() const
+    {
+        return CommandMoveDestination;
+    }
 
     UFUNCTION(BlueprintPure, Category = "Local AI|Jack World State")
     FString GetWorldStateJson() const;
@@ -461,6 +696,18 @@ private:
         Idle,
         Walk,
         Run,
+        Jump,
+        SitDown,
+        SitIdle,
+        StandUp
+    };
+
+    enum class EPendingAfterStandAction : uint8
+    {
+        None,
+        FollowWalk,
+        FollowRun,
+        MoveToLocation,
         Jump
     };
 
@@ -477,19 +724,94 @@ private:
         const FString& PlayerText,
         FString& OutReply
     );
+    void TryRunPendingPostWorldActionCommand();
     void SpeakLocalActionReply(
         const FString& PlayerText,
         const FString& ReplyText
     );
     void UpdateActionMovement(float DeltaTime);
+    void UpdateActionGrounding(float DeltaTime);
+    void StartFollowingPlayerImmediate(bool bRun);
+    bool StartSittingAtBestSeat(
+        const FVector& ReferenceLocation,
+        FString& OutFailure
+    );
+    bool FindBestAvailableSeat(
+        const FVector& ReferenceLocation,
+        AActor*& OutSeat,
+        FVector& OutSeatCenter,
+        FVector& OutSeatForward,
+        float& OutSeatSurfaceZ,
+        FVector& OutApproachLocation
+    ) const;
+    bool ReserveSeat(AActor* Seat);
+    void ReleaseReservedSeat();
+    void BeginSitAnimationAtReservedSeat();
+    void PrepareSeatBodyAlignment();
+    USkeletalMeshComponent* ResolveActionBodyMesh();
+    void ResetActionBodyOffset();
+    bool FindActionGroundHeight(const FVector& Location, float& OutGroundZ) const;
+    bool FindCollisionSafeMove(
+        const FVector& StartLocation,
+        const FVector& DesiredDelta,
+        const FVector& GoalDirection,
+        FVector& OutLocation,
+        FHitResult& OutHit
+    );
+    bool IsActionCapsuleMoveBlocked(
+        const FVector& StartLocation,
+        const FVector& Delta,
+        FHitResult& OutHit
+    ) const;
+    bool IsActionNavigationSegmentBlocked(
+        const FVector& StartNavigationLocation,
+        const FVector& EndNavigationLocation,
+        FHitResult& OutHit
+    ) const;
+    bool IsActionNavigationLocationBlocked(
+        const FVector& NavigationLocation
+    ) const;
+    bool BuildCollisionAwareNavigationPath(
+        const FVector& StartLocation,
+        const FVector& GoalLocation,
+        TArray<FVector>& OutPathPoints,
+        int32& OutExpandedNodes
+    ) const;
+    bool UpdateActorGroundHeight(
+        FVector& InOutLocation,
+        float DeltaTime
+    );
+    bool StartMoveToLocation(
+        const FVector& Destination,
+        float StopDistance,
+        bool bRun,
+        bool bFacePlayerAtDestination,
+        FString& OutFailure,
+        bool bSitAtDestination = false
+    );
+    bool RebuildActionNavigationPath(
+        const FVector& DesiredGoal,
+        float StopDistance
+    );
+    void ClearActionNavigationPath();
     void UpdateActionJump(float DeltaTime);
+    void BeginStandUpTransition();
+    void FinishSitDownTransition();
+    void FinishStandUpTransition();
+    void RunPendingAfterStandAction();
+    void CancelSittingImmediately();
     void EnsureWorldStateAgent();
     AActor* ResolveFollowTarget() const;
     TArray<USkeletalMeshComponent*> ResolveActionAnimationMeshes();
     bool ShouldUseMeshForActionAnimation(
         const USkeletalMeshComponent* Mesh
     ) const;
-    void PlayActionAnimation(EActionAnimationState State, bool bLooping);
+    void PlayActionAnimation(
+        EActionAnimationState State,
+        bool bLooping,
+        float StartPositionSeconds = 0.0f,
+        float PlayRate = 1.0f
+    );
     void RestoreActionAnimation();
     UAnimSequence* ResolveActionAnimation(EActionAnimationState State) const;
     void RequestRelevantMemory(const FString& PlayerText);
@@ -501,6 +823,7 @@ private:
         const FString& PlayerText,
         const FString& ReplyText
     );
+    void PublishReplyText(const FString& ReplyText);
     void RequestTurnEmbedding(int32 TurnIndex);
     void WarmEmbeddingModel();
     void InitializeSessionMemory();
@@ -532,6 +855,10 @@ private:
     void BindACEPlaybackDelegates();
     void ScheduleACEWarmup();
     void TryStartACEWarmup();
+    void RegisterSharedACEProvider();
+    void UnregisterSharedACEProvider();
+    void MarkSharedACESessionStarted();
+    void MarkSharedACESessionFinished();
     void ScheduleInstantAcknowledgement();
     void TryEnqueueInstantAcknowledgement();
     TArray<FString> SplitReplyIntoSpeechSegments(const FString& ReplyText) const;
@@ -573,11 +900,16 @@ private:
     UPROPERTY(Transient)
     TObjectPtr<UAudioComponent> AudioComponent;
 
+    FString PendingPostWorldActionCommand;
+
     UPROPERTY(Transient)
     TObjectPtr<USoundWaveProcedural> ProceduralSound;
 
     UPROPERTY(Transient)
     TObjectPtr<UAsyncActionAnimateCharacter> ActiveACEAction;
+
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<UAsyncActionAnimateCharacter>> InterruptedACEActions;
 
     UPROPERTY(Transient)
     TObjectPtr<UACEAudioCurveSourceComponent> ACECurveSource;
@@ -589,6 +921,7 @@ private:
     TObjectPtr<USkeletalMeshComponent> ACEFaceMesh;
 
     FString PendingACEDeletePath;
+    TArray<FString> InterruptedACEDeletePaths;
     bool bACEDirectMorphsActive = false;
     TArray<FSpeechQueueItem> SpeechQueue;
     FTimerHandle SpeechQueueTimerHandle;
@@ -604,15 +937,54 @@ private:
     bool bQueuedACEPlaybackEnded = false;
     bool bFinalSpeechQueuedForCurrentTurn = false;
     bool bACEWarmupInFlight = false;
+    bool bSharedACEProviderRegistered = false;
+    bool bSharedACESessionCounted = false;
     bool bSubtitleWidgetAdded = false;
     bool bFollowingPlayer = false;
     bool bFollowUsingRun = false;
+    bool bMovingToCommandLocation = false;
+    bool bCommandMoveUseRun = false;
+    bool bFacePlayerWhenCommandMoveFinishes = false;
+    bool bSitAfterCommandMove = false;
+    bool bIsSitting = false;
+    bool bSitDownInProgress = false;
+    bool bStandUpInProgress = false;
     bool bActionJumpInProgress = false;
     bool bActionAnimationStateSaved = false;
+    bool bActionBodyBaseTransformSaved = false;
+    bool bSeatBodyAlignmentActive = false;
     float ActionJumpElapsedSeconds = 0.0f;
     float ActionJumpActiveDurationSeconds = 0.0f;
     float ActionJumpBaseZ = 0.0f;
     TWeakObjectPtr<AActor> FollowTargetActor;
+    FVector CommandMoveDestination = FVector::ZeroVector;
+    float CommandMoveStopDistance = 35.0f;
+    EPendingAfterStandAction PendingAfterStandAction =
+        EPendingAfterStandAction::None;
+    FVector PendingStandMoveDestination = FVector::ZeroVector;
+    float PendingStandMoveStopDistance = 35.0f;
+    bool bPendingStandMoveUseRun = false;
+    bool bPendingStandMoveFacePlayer = false;
+    bool bPendingStandMoveSitAtDestination = false;
+    TArray<FVector> ActionNavigationPathPoints;
+    int32 ActionNavigationPathPointIndex = 0;
+    float ActionNavigationRepathElapsedSeconds = 0.0f;
+    float ActionNavigationStallElapsedSeconds = 0.0f;
+    int32 ActionNavigationFailureCount = 0;
+    FVector ActionNavigationGoal = FVector::ZeroVector;
+    FVector ActionPersistentAvoidanceDirection = FVector::ZeroVector;
+    float ActionPersistentAvoidanceDistanceRemaining = 0.0f;
+    TWeakObjectPtr<AActor> ActionPersistentBlockingActor;
+    bool bActionActorGroundOffsetInitialized = false;
+    float ActionActorGroundOffsetZ = 0.0f;
+    TWeakObjectPtr<AActor> ReservedSeatActor;
+    FVector ReservedSeatCenter = FVector::ZeroVector;
+    FVector ReservedSeatForward = FVector::ForwardVector;
+    FVector ReservedSeatApproachLocation = FVector::ZeroVector;
+    float ReservedSeatSurfaceZ = 0.0f;
+    TWeakObjectPtr<USkeletalMeshComponent> ActionBodyMesh;
+    FVector ActionBodyBaseRelativeLocation = FVector::ZeroVector;
+    FVector ActionBodyTargetRelativeLocation = FVector::ZeroVector;
     TArray<TWeakObjectPtr<USkeletalMeshComponent>> ActionAnimationMeshes;
     TArray<FActionAnimationMeshState> SavedActionAnimationMeshStates;
     EActionAnimationState CurrentActionAnimationState =
@@ -625,6 +997,7 @@ private:
     FTimerHandle ACEWarmupTimerHandle;
     FTimerHandle SubtitleTimerHandle;
     FTimerHandle ActionAnimationTimerHandle;
+    FTimerHandle SitTransitionTimerHandle;
     void* WindowsSTTRecognizer = nullptr;
     void* WindowsSTTAudioInput = nullptr;
     void* WindowsSTTContext = nullptr;

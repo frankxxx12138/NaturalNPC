@@ -1,0 +1,22 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "Natural NPC Player Mode",
+  "Description": "Selects the existing XR or first-person player classes based on whether an HMD is active.",
+  "Category": "Gameplay",
+  "CanContainContent": false,
+  "Plugins": [
+    {
+      "Name": "XRBase",
+      "Enabled": true
+    }
+  ],
+  "Modules": [
+    {
+      "Name": "NaturalNPCPlayerMode",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

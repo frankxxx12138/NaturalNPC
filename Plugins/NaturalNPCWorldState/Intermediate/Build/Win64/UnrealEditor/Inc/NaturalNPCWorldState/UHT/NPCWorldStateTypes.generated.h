@@ -28,7 +28,7 @@ struct FNPCWorldItemAnimationProfile;
 
 // ********** Begin ScriptStruct FNPCWorldActionDefinition *****************************************
 struct Z_Construct_UScriptStruct_FNPCWorldActionDefinition_Statics;
-#define FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h_47_GENERATED_BODY \
+#define FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h_56_GENERATED_BODY \
 	friend struct ::Z_Construct_UScriptStruct_FNPCWorldActionDefinition_Statics; \
 	static class UScriptStruct* StaticStruct();
 
@@ -38,7 +38,7 @@ struct FNPCWorldActionDefinition;
 
 // ********** Begin ScriptStruct FNPCWorldObjectState **********************************************
 struct Z_Construct_UScriptStruct_FNPCWorldObjectState_Statics;
-#define FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h_101_GENERATED_BODY \
+#define FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h_110_GENERATED_BODY \
 	friend struct ::Z_Construct_UScriptStruct_FNPCWorldObjectState_Statics; \
 	static class UScriptStruct* StaticStruct();
 
@@ -48,7 +48,7 @@ struct FNPCWorldObjectState;
 
 // ********** Begin ScriptStruct FNPCWorldActionResult *********************************************
 struct Z_Construct_UScriptStruct_FNPCWorldActionResult_Statics;
-#define FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h_134_GENERATED_BODY \
+#define FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateTypes_h_143_GENERATED_BODY \
 	friend struct ::Z_Construct_UScriptStruct_FNPCWorldActionResult_Statics; \
 	static class UScriptStruct* StaticStruct();
 

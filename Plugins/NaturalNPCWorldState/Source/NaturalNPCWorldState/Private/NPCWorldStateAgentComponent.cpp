@@ -12,6 +12,7 @@
 #include "NPCWorldStateSubsystem.h"
 #include "NavigationPath.h"
 #include "NavigationSystem.h"
+#include "NPCAdaptivePickupAnimInstance.h"
 #include "TimerManager.h"
 
 UNPCWorldStateAgentComponent::UNPCWorldStateAgentComponent()
@@ -21,7 +22,7 @@ UNPCWorldStateAgentComponent::UNPCWorldStateAgentComponent()
     const TSoftObjectPtr<UAnimSequence> PistolPickup(
         FSoftObjectPath(
         TEXT("/Game/MetaHumans/Human2/Animations/Actions/")
-        TEXT("Human2_MM_Pistol_Equip.Human2_MM_Pistol_Equip")
+        TEXT("Human2_PickingUp_Small.Human2_PickingUp_Small")
         )
     );
     const TSoftObjectPtr<UAnimSequence> PistolHeldIdle(
@@ -42,16 +43,26 @@ UNPCWorldStateAgentComponent::UNPCWorldStateAgentComponent()
         TEXT("Human2_Held_Idle_TwoHand.Human2_Held_Idle_TwoHand")
         )
     );
+    const TSoftObjectPtr<UAnimSequence> HeldWalk(
+        FSoftObjectPath(
+        TEXT("/Game/MetaHumans/Human2/Animations/Actions/")
+        TEXT("Human2_BoxWalk_Carry.Human2_BoxWalk_Carry")
+        )
+    );
 
     DefaultPickupAnimation = TwoHandPickup;
     DefaultDropAnimation = TwoHandPickup;
     DefaultHeldIdleAnimation = TwoHandHeldIdle;
+    DefaultHeldWalkAnimation = HeldWalk;
 
     FNPCWorldItemAnimationProfile PistolProfile;
     PistolProfile.Category = TEXT("pistol");
     PistolProfile.PickupAnimation = PistolPickup;
     PistolProfile.HeldIdleAnimation = PistolHeldIdle;
+    PistolProfile.HeldWalkAnimation = HeldWalk;
     PistolProfile.DropAnimation = PistolPickup;
+    PistolProfile.PickupEffectTriggerNormalizedTime = 0.25f;
+    PistolProfile.PickupAnimationPlayRate = 2.5f;
     ItemAnimationProfiles.Add(PistolProfile);
 
     for (const FName Category : {
@@ -111,6 +122,8 @@ void UNPCWorldStateAgentComponent::EndPlay(
     const EEndPlayReason::Type EndPlayReason
 )
 {
+    QueuedNaturalLanguageActions.Reset();
+    bNaturalLanguageSequenceActive = false;
     CancelPendingAction();
     if (HeldActor.IsValid())
     {
@@ -172,6 +185,7 @@ void UNPCWorldStateAgentComponent::CancelPendingAction()
     RestoreAnimationState(ActionAnimationMeshStates);
     bActionInProgress = false;
     bPendingEffectApplied = false;
+    bPendingEffectSucceeded = false;
     bApproachingActionTarget = false;
     PendingAction = FNPCWorldActionDefinition();
     PendingActionTarget.Reset();
@@ -181,6 +195,11 @@ void UNPCWorldStateAgentComponent::CancelPendingAction()
     ApproachPathPointIndex = 0;
     ApproachElapsedSeconds = 0.0f;
     ApproachMovementZ = 0.0f;
+    ApproachRepathElapsedSeconds = 0.0f;
+    ApproachStallElapsedSeconds = 0.0f;
+    ApproachRepathFailureCount = 0;
+    ApproachLastTargetLocation = FVector::ZeroVector;
+    ApproachGoalLocation = FVector::ZeroVector;
     ActiveApproachAnimation.Reset();
 }
 
@@ -775,6 +794,40 @@ UAnimSequence* UNPCWorldStateAgentComponent::ResolveHeldIdleAnimation(
     return Animation.IsNull() ? nullptr : Animation.LoadSynchronous();
 }
 
+UAnimSequence* UNPCWorldStateAgentComponent::GetHeldWalkAnimation() const
+{
+    AActor* Target = HeldActor.Get();
+    if (!IsValid(Target))
+    {
+        return nullptr;
+    }
+
+    TSoftObjectPtr<UAnimSequence> Animation;
+    if (const FNPCWorldItemAnimationProfile* Profile =
+        FindItemAnimationProfile(Target))
+    {
+        Animation = Profile->HeldWalkAnimation;
+    }
+    if (Animation.IsNull())
+    {
+        Animation = DefaultHeldWalkAnimation;
+    }
+    return Animation.IsNull() ? nullptr : Animation.LoadSynchronous();
+}
+
+UAnimSequence* UNPCWorldStateAgentComponent::GetCurrentHeldIdleAnimation() const
+{
+    AActor* Target = HeldActor.Get();
+    return IsValid(Target)
+        ? ResolveHeldIdleAnimation(HeldIdleSourceAction, Target)
+        : nullptr;
+}
+
+void UNPCWorldStateAgentComponent::SuspendHeldIdleAnimation()
+{
+    RestoreHeldAnimationState();
+}
+
 USkeletalMeshComponent*
 UNPCWorldStateAgentComponent::FindActionAnimationMesh(
     const FNPCWorldActionDefinition& Action
@@ -795,7 +848,10 @@ bool UNPCWorldStateAgentComponent::PlaySynchronizedAnimation(
     bool bLooping,
     float PlayRate,
     bool bReverse,
-    TArray<FActionAnimationMeshState>& SavedStates
+    TArray<FActionAnimationMeshState>& SavedStates,
+    AActor* AdaptivePickupTarget,
+    float PickupContactNormalizedTime,
+    bool bUseSupportHand
 )
 {
     if (!Animation || !PrimaryMesh ||
@@ -820,6 +876,24 @@ bool UNPCWorldStateAgentComponent::PlaySynchronizedAnimation(
     }
 
     const float SafePlayRate = FMath::Max(0.01f, FMath::Abs(PlayRate));
+    FVector PickupTargetLocation = FVector::ZeroVector;
+    FVector PickupTargetExtent = FVector::ZeroVector;
+    const bool bUseAdaptivePickup =
+        bEnableAdaptivePickupIK && IsValid(AdaptivePickupTarget) &&
+        !bLooping && !bReverse;
+    if (bUseAdaptivePickup)
+    {
+        AdaptivePickupTarget->GetActorBounds(
+            false,
+            PickupTargetLocation,
+            PickupTargetExtent
+        );
+    }
+    const float GripHalfWidth = FMath::Clamp(
+        FMath::Min(PickupTargetExtent.GetAbsMax(), 30.0f) * 0.55f,
+        4.0f,
+        22.0f
+    );
     TArray<USkeletalMeshComponent*> SkeletalMeshes;
     GetOwner()->GetComponents(SkeletalMeshes);
     bool bPrimaryMeshPlaying = false;
@@ -836,9 +910,42 @@ bool UNPCWorldStateAgentComponent::PlaySynchronizedAnimation(
         Saved.Mesh = Mesh;
         Saved.AnimationMode = Mesh->GetAnimationMode();
         Saved.AnimClass = Mesh->GetAnimClass();
-        Mesh->PlayAnimation(Animation, bLooping);
+        UAnimSingleNodeInstance* SingleNode = nullptr;
+        if (bUseAdaptivePickup)
+        {
+            Mesh->SetAnimInstanceClass(
+                UNPCAdaptivePickupAnimInstance::StaticClass()
+            );
+            UNPCAdaptivePickupAnimInstance* PickupInstance =
+                Cast<UNPCAdaptivePickupAnimInstance>(Mesh->GetAnimInstance());
+            if (PickupInstance)
+            {
+                PickupInstance->ConfigurePickup(
+                    PickupTargetLocation,
+                    PickupContactNormalizedTime,
+                    bUseSupportHand,
+                    GripHalfWidth,
+                    AdaptivePickupIKBlendWindow,
+                    AdaptivePickupPelvisInfluence,
+                    AdaptivePickupMaxPelvisOffset,
+                    AdaptivePickupMaxArmStretch
+                );
+                PickupInstance->SetAnimationAsset(
+                    Animation,
+                    false,
+                    SafePlayRate
+                );
+                PickupInstance->SetPosition(0.0f, false);
+                PickupInstance->SetPlaying(true);
+                SingleNode = PickupInstance;
+            }
+        }
+        else
+        {
+            Mesh->PlayAnimation(Animation, bLooping);
+            SingleNode = Mesh->GetSingleNodeInstance();
+        }
 
-        UAnimSingleNodeInstance* SingleNode = Mesh->GetSingleNodeInstance();
         if (!SingleNode)
         {
             Mesh->SetAnimationMode(Saved.AnimationMode, true);
@@ -865,6 +972,21 @@ bool UNPCWorldStateAgentComponent::PlaySynchronizedAnimation(
     if (!bPrimaryMeshPlaying)
     {
         RestoreAnimationState(SavedStates);
+    }
+    else if (bUseAdaptivePickup)
+    {
+        UE_LOG(
+            LogTemp,
+            Display,
+            TEXT("NPC_ADAPTIVE_PICKUP_IK started npc=%s target=%s "
+                "height=%.1f contact=%.2f support_hand=%d meshes=%d"),
+            GetOwner() ? *GetOwner()->GetName() : TEXT("None"),
+            *AdaptivePickupTarget->GetName(),
+            PickupTargetLocation.Z,
+            PickupContactNormalizedTime,
+            bUseSupportHand ? 1 : 0,
+            SavedStates.Num()
+        );
     }
     return bPrimaryMeshPlaying;
 }
@@ -958,10 +1080,61 @@ bool UNPCWorldStateAgentComponent::StartAnimatedAction(
         return false;
     }
 
+    float RequestedPlayRate = Action.AnimationPlayRate;
+    if (Action.ActionId == TEXT("pickup") &&
+        Action.ActionAnimation.IsNull())
+    {
+        if (const FNPCWorldItemAnimationProfile* Profile =
+            FindItemAnimationProfile(Target))
+        {
+            RequestedPlayRate = Profile->PickupAnimationPlayRate;
+        }
+    }
+    else if (Action.ActionId == TEXT("drop") &&
+        Action.ActionAnimation.IsNull())
+    {
+        if (const FNPCWorldItemAnimationProfile* Profile =
+            FindItemAnimationProfile(Target);
+            Profile && Profile->DropAnimation == Profile->PickupAnimation)
+        {
+            RequestedPlayRate = Profile->PickupAnimationPlayRate;
+        }
+    }
     const float PlayRate = FMath::Max(
         0.01f,
-        FMath::Abs(Action.AnimationPlayRate)
+        FMath::Abs(RequestedPlayRate)
     );
+    float EffectTriggerNormalizedTime = Action.EffectTriggerNormalizedTime;
+    const FNPCWorldItemAnimationProfile* AnimationProfile = nullptr;
+    if (Action.ActionId == TEXT("pickup") &&
+        Action.ActionAnimation.IsNull())
+    {
+        AnimationProfile = FindItemAnimationProfile(Target);
+        if (AnimationProfile &&
+            AnimationProfile->PickupEffectTriggerNormalizedTime >= 0.0f)
+        {
+            EffectTriggerNormalizedTime =
+                AnimationProfile->PickupEffectTriggerNormalizedTime;
+        }
+    }
+    else if (Action.ActionId == TEXT("drop") &&
+        Action.ActionAnimation.IsNull())
+    {
+        AnimationProfile = FindItemAnimationProfile(Target);
+        if (AnimationProfile &&
+            AnimationProfile->DropAnimation ==
+                AnimationProfile->PickupAnimation &&
+            AnimationProfile->PickupEffectTriggerNormalizedTime >= 0.0f)
+        {
+            EffectTriggerNormalizedTime = 1.0f -
+                AnimationProfile->PickupEffectTriggerNormalizedTime;
+        }
+    }
+    const bool bAdaptivePickup =
+        Action.ActionId == TEXT("pickup") &&
+        IsValid(Target) && !Action.bPlayAnimationInReverse;
+    const bool bUseSupportHand =
+        AnimationProfile && AnimationProfile->bCenterObjectBetweenHands;
 
     const bool bResumeHeldIdleOnFailure =
         !HeldAnimationMeshStates.IsEmpty() && HeldActor.IsValid();
@@ -972,7 +1145,10 @@ bool UNPCWorldStateAgentComponent::StartAnimatedAction(
         false,
         PlayRate,
         Action.bPlayAnimationInReverse,
-        ActionAnimationMeshStates
+        ActionAnimationMeshStates,
+        bAdaptivePickup ? Target : nullptr,
+        EffectTriggerNormalizedTime,
+        bUseSupportHand
     ))
     {
         if (bResumeHeldIdleOnFailure)
@@ -988,25 +1164,12 @@ bool UNPCWorldStateAgentComponent::StartAnimatedAction(
     PendingParameters = Parameters;
     bActionInProgress = true;
     bPendingEffectApplied = false;
+    bPendingEffectSucceeded = false;
 
     const float Duration = FMath::Max(
         0.01f,
         Animation->GetPlayLength() / PlayRate
     );
-    float EffectTriggerNormalizedTime = Action.EffectTriggerNormalizedTime;
-    if (Action.ActionId == TEXT("pickup") &&
-        Action.ActionAnimation.IsNull())
-    {
-        if (const FNPCWorldItemAnimationProfile* Profile =
-            FindItemAnimationProfile(Target))
-        {
-            if (Profile->PickupEffectTriggerNormalizedTime >= 0.0f)
-            {
-                EffectTriggerNormalizedTime =
-                    Profile->PickupEffectTriggerNormalizedTime;
-            }
-        }
-    }
     const float EffectDelay = Duration * FMath::Clamp(
         EffectTriggerNormalizedTime,
         0.0f,
@@ -1099,32 +1262,7 @@ bool UNPCWorldStateAgentComponent::StartApproachForAction(
     }
 
     const float ReachDistance = GetPickupReachDistance(Action);
-    const FVector FromOwner = (TargetLocation - OwnerLocation).GetSafeNormal2D();
-    FVector ApproachLocation = TargetLocation -
-        FromOwner * FMath::Max(40.0f, ReachDistance * 0.75f);
     ApproachMovementZ = OwnerLocation.Z;
-
-    ApproachPathPoints.Reset();
-    bool bUsingNavigationPath = false;
-    if (UNavigationPath* Path =
-        UNavigationSystemV1::FindPathToLocationSynchronously(
-            World,
-            OwnerLocation,
-            ApproachLocation,
-            nullptr
-        ); Path && Path->IsValid() && Path->PathPoints.Num() > 1)
-    {
-        ApproachPathPoints = Path->PathPoints;
-        bUsingNavigationPath = true;
-    }
-    else
-    {
-        ApproachPathPoints = {OwnerLocation, ApproachLocation};
-    }
-    for (FVector& Point : ApproachPathPoints)
-    {
-        Point.Z = ApproachMovementZ;
-    }
 
     PendingAction = Action;
     PendingActionTarget = Target;
@@ -1135,7 +1273,23 @@ bool UNPCWorldStateAgentComponent::StartApproachForAction(
     bApproachingActionTarget = true;
     ApproachPathPointIndex = 0;
     ApproachElapsedSeconds = 0.0f;
+    ApproachRepathElapsedSeconds = 0.0f;
+    ApproachStallElapsedSeconds = 0.0f;
+    ApproachRepathFailureCount = 0;
+    ApproachLastTargetLocation = TargetLocation;
     ActiveApproachAnimation.Reset();
+
+    if (!RebuildApproachPath(Target, ReachDistance))
+    {
+        CancelPendingAction();
+        OutResult = MakeResult(
+            false,
+            ObjectId,
+            Action.ActionId,
+            TEXT("No navigable route to the object was found.")
+        );
+        return false;
+    }
 
     const bool bRun = Distance >= PickupApproachRunDistance;
     UpdateApproachAnimation(bRun);
@@ -1155,7 +1309,144 @@ bool UNPCWorldStateAgentComponent::StartApproachForAction(
         Distance,
         ReachDistance,
         ApproachPathPoints.Num(),
-        bUsingNavigationPath ? 1 : 0
+        1
+    );
+    return true;
+}
+
+bool UNPCWorldStateAgentComponent::RebuildApproachPath(
+    AActor* Target,
+    float ReachDistance
+)
+{
+    AActor* Owner = GetOwner();
+    UWorld* World = GetWorld();
+    UNavigationSystemV1* NavigationSystem = World
+        ? FNavigationSystem::GetCurrent<UNavigationSystemV1>(World)
+        : nullptr;
+    if (!IsValid(Owner) || !IsValid(Target) || !NavigationSystem)
+    {
+        return false;
+    }
+
+    const FVector OwnerLocation = Owner->GetActorLocation();
+    const FVector TargetLocation = GetTargetInteractionLocation(Target);
+    FVector PreferredDirection = OwnerLocation - TargetLocation;
+    PreferredDirection.Z = 0.0f;
+    if (!PreferredDirection.Normalize())
+    {
+        PreferredDirection = FVector::ForwardVector;
+    }
+
+    const float CandidateRadius = FMath::Max(
+        45.0f,
+        ReachDistance * 0.75f
+    );
+    const int32 CandidateCount = FMath::Clamp(
+        PickupApproachCandidateCount,
+        4,
+        32
+    );
+    const FVector ProjectionExtent(140.0f, 140.0f, 250.0f);
+    float BestPathLength = TNumericLimits<float>::Max();
+    TArray<FVector> BestPathPoints;
+    FVector BestGoal = FVector::ZeroVector;
+
+    for (int32 CandidateIndex = 0;
+         CandidateIndex < CandidateCount;
+         ++CandidateIndex)
+    {
+        const float AngleDegrees =
+            360.0f * static_cast<float>(CandidateIndex) /
+            static_cast<float>(CandidateCount);
+        const FVector CandidateDirection = PreferredDirection.RotateAngleAxis(
+            AngleDegrees,
+            FVector::UpVector
+        );
+        const FVector CandidateLocation =
+            TargetLocation + CandidateDirection * CandidateRadius;
+
+        FNavLocation ProjectedLocation;
+        if (!NavigationSystem->ProjectPointToNavigation(
+                CandidateLocation,
+                ProjectedLocation,
+                ProjectionExtent))
+        {
+            continue;
+        }
+        if (FVector::Dist2D(ProjectedLocation.Location, TargetLocation) >
+            ReachDistance * 1.05f)
+        {
+            continue;
+        }
+
+        UNavigationPath* Path =
+            UNavigationSystemV1::FindPathToLocationSynchronously(
+                World,
+                OwnerLocation,
+                ProjectedLocation.Location,
+                nullptr
+            );
+        if (!Path || !Path->IsValid() || Path->IsPartial() ||
+            Path->PathPoints.Num() < 2)
+        {
+            continue;
+        }
+
+        float PathLength = 0.0f;
+        for (int32 PointIndex = 1;
+             PointIndex < Path->PathPoints.Num();
+             ++PointIndex)
+        {
+            PathLength += FVector::Dist2D(
+                Path->PathPoints[PointIndex - 1],
+                Path->PathPoints[PointIndex]
+            );
+        }
+        if (PathLength >= BestPathLength)
+        {
+            continue;
+        }
+
+        BestPathLength = PathLength;
+        BestPathPoints = Path->PathPoints;
+        BestGoal = ProjectedLocation.Location;
+    }
+
+    if (BestPathPoints.IsEmpty())
+    {
+        UE_LOG(
+            LogTemp,
+            Warning,
+            TEXT("NPC_WORLD_ACTION approach_repath_failed npc=%s object=%s"),
+            *Owner->GetName(),
+            *Target->GetName()
+        );
+        return false;
+    }
+
+    ApproachPathPoints = MoveTemp(BestPathPoints);
+    for (FVector& Point : ApproachPathPoints)
+    {
+        Point.Z = ApproachMovementZ;
+    }
+    ApproachPathPointIndex = 0;
+    ApproachGoalLocation = BestGoal;
+    ApproachGoalLocation.Z = ApproachMovementZ;
+    ApproachLastTargetLocation = TargetLocation;
+    ApproachRepathElapsedSeconds = 0.0f;
+    ApproachStallElapsedSeconds = 0.0f;
+
+    UE_LOG(
+        LogTemp,
+        Verbose,
+        TEXT("NPC_WORLD_ACTION approach_repath npc=%s object=%s "
+            "points=%d length=%.1f goal=%s"),
+        *Owner->GetName(),
+        *Target->GetName(),
+        ApproachPathPoints.Num(),
+        BestPathLength,
+        *ApproachGoalLocation.ToCompactString()
     );
     return true;
 }
@@ -1204,6 +1495,7 @@ void UNPCWorldStateAgentComponent::UpdateApproach(float DeltaTime)
     }
 
     ApproachElapsedSeconds += DeltaTime;
+    ApproachRepathElapsedSeconds += DeltaTime;
     if (ApproachElapsedSeconds >
         FMath::Max(1.0f, PickupApproachTimeoutSeconds))
     {
@@ -1222,6 +1514,24 @@ void UNPCWorldStateAgentComponent::UpdateApproach(float DeltaTime)
     {
         BeginPendingActionAtTarget();
         return;
+    }
+
+    const bool bTargetMoved = FVector::Dist2D(
+        TargetLocation,
+        ApproachLastTargetLocation
+    ) > 60.0f;
+    if (bTargetMoved &&
+        ApproachRepathElapsedSeconds >=
+            FMath::Max(0.05f, PickupApproachRepathIntervalSeconds))
+    {
+        if (!RebuildApproachPath(Target, ReachDistance))
+        {
+            ++ApproachRepathFailureCount;
+        }
+        else
+        {
+            ApproachRepathFailureCount = 0;
+        }
     }
 
     while (ApproachPathPointIndex < ApproachPathPoints.Num() &&
@@ -1271,7 +1581,50 @@ void UNPCWorldStateAgentComponent::UpdateApproach(float DeltaTime)
     const FVector MoveDirection = ToMoveTarget.GetSafeNormal2D();
     FVector NewLocation = OwnerLocation + MoveDirection * MoveDistance;
     NewLocation.Z = ApproachMovementZ;
-    Owner->SetActorLocation(NewLocation, true);
+    FHitResult SweepHit;
+    Owner->SetActorLocation(NewLocation, true, &SweepHit);
+    const float ActualMoveDistance = FVector::Dist2D(
+        OwnerLocation,
+        Owner->GetActorLocation()
+    );
+    if (ActualMoveDistance < FMath::Min(1.0f, MoveDistance * 0.2f))
+    {
+        ApproachStallElapsedSeconds += DeltaTime;
+    }
+    else
+    {
+        ApproachStallElapsedSeconds = 0.0f;
+        ApproachRepathFailureCount = 0;
+    }
+
+    if (SweepHit.bBlockingHit ||
+        ApproachStallElapsedSeconds >=
+            FMath::Max(0.05f, PickupApproachStallSeconds))
+    {
+        if (ApproachRepathElapsedSeconds >=
+            FMath::Max(0.05f, PickupApproachRepathIntervalSeconds))
+        {
+            const bool bRebuilt = RebuildApproachPath(
+                Target,
+                ReachDistance
+            );
+            if (!bRebuilt)
+            {
+                ++ApproachRepathFailureCount;
+                ApproachRepathElapsedSeconds = 0.0f;
+                ApproachStallElapsedSeconds = 0.0f;
+            }
+            if (ApproachRepathFailureCount >= FMath::Max(
+                    1,
+                    MaximumPickupApproachRepathFailures))
+            {
+                FailPendingAction(
+                    TEXT("The route to the object is blocked.")
+                );
+                return;
+            }
+        }
+    }
 
     const FRotator CurrentRotation = Owner->GetActorRotation();
     const FRotator DesiredDirection = MoveDirection.Rotation();
@@ -1352,6 +1705,17 @@ void UNPCWorldStateAgentComponent::BeginPendingActionAtTarget()
     {
         StartHeldIdleAnimation(Action, Target);
     }
+    if (bNaturalLanguageSequenceActive)
+    {
+        if (bSuccess)
+        {
+            ContinueNaturalLanguageActionSequence();
+        }
+        else
+        {
+            FailNaturalLanguageActionSequence(Result.Message);
+        }
+    }
     UE_LOG(
         LogTemp,
         Display,
@@ -1384,6 +1748,7 @@ void UNPCWorldStateAgentComponent::FailPendingAction(
     CancelPendingAction();
     RefreshWorldState();
     OnWorldActionCompleted.Broadcast(Result);
+    FailNaturalLanguageActionSequence(Message);
 }
 
 void UNPCWorldStateAgentComponent::ApplyPendingActionEffect()
@@ -1402,6 +1767,7 @@ void UNPCWorldStateAgentComponent::ApplyPendingActionEffect()
         PendingParameters,
         Result
     );
+    bPendingEffectSucceeded = Result.bSuccess;
     UE_LOG(
         LogTemp,
         Display,
@@ -1427,6 +1793,7 @@ void UNPCWorldStateAgentComponent::FinishPendingAction()
     {
         ApplyPendingActionEffect();
     }
+    const bool bFinishedActionSucceeded = bPendingEffectSucceeded;
     const FNPCWorldActionDefinition FinishedAction = PendingAction;
     AActor* CurrentHeldActor = HeldActor.Get();
     const bool bStartNewHeldIdle =
@@ -1443,6 +1810,19 @@ void UNPCWorldStateAgentComponent::FinishPendingAction()
     else if (bResumeExistingHeldIdle)
     {
         ResumeHeldIdleAnimation();
+    }
+    if (bNaturalLanguageSequenceActive)
+    {
+        if (bFinishedActionSucceeded)
+        {
+            ContinueNaturalLanguageActionSequence();
+        }
+        else
+        {
+            FailNaturalLanguageActionSequence(
+                TEXT("A queued world action failed during execution.")
+            );
+        }
     }
 }
 
@@ -1604,6 +1984,134 @@ bool UNPCWorldStateAgentComponent::TextContainsAny(
         }
     }
     return false;
+}
+
+TArray<FString>
+UNPCWorldStateAgentComponent::SplitNaturalLanguageActionClauses(
+    const FString& Command
+) const
+{
+    FString Working = Command.TrimStartAndEnd();
+    for (const FString& Separator : {
+        FString(TEXT(" and then ")),
+        FString(TEXT(" followed by ")),
+        FString(TEXT(" then ")),
+        FString(TEXT(" and ")),
+        FString(TEXT(";")),
+        FString(TEXT(",")),
+        FString(TEXT("\u7136\u540e")),
+        FString(TEXT("\u63a5\u7740")),
+        FString(TEXT("\u5e76\u4e14")),
+        FString(TEXT("\u518d"))})
+    {
+        Working.ReplaceInline(
+            *Separator,
+            TEXT("|"),
+            ESearchCase::IgnoreCase
+        );
+    }
+
+    TArray<FString> RawClauses;
+    Working.ParseIntoArray(RawClauses, TEXT("|"), true);
+    TArray<FString> Clauses;
+    for (FString& RawClause : RawClauses)
+    {
+        RawClause = RawClause.TrimStartAndEnd();
+        if (!RawClause.IsEmpty())
+        {
+            Clauses.Add(MoveTemp(RawClause));
+        }
+    }
+    return Clauses;
+}
+
+void UNPCWorldStateAgentComponent::FailNaturalLanguageActionSequence(
+    const FString& Reason
+)
+{
+    if (!bNaturalLanguageSequenceActive &&
+        QueuedNaturalLanguageActions.IsEmpty())
+    {
+        return;
+    }
+
+    UE_LOG(
+        LogTemp,
+        Warning,
+        TEXT("NPC_WORLD_ACTION sequence_failed npc=%s remaining=%d "
+            "reason=%s"),
+        GetOwner() ? *GetOwner()->GetName() : TEXT("None"),
+        QueuedNaturalLanguageActions.Num(),
+        *Reason
+    );
+    QueuedNaturalLanguageActions.Reset();
+    bNaturalLanguageSequenceActive = false;
+    bLastNaturalLanguageSequenceSucceeded = false;
+}
+
+bool UNPCWorldStateAgentComponent::ContinueNaturalLanguageActionSequence(
+    FNPCWorldActionResult* OutFirstResult
+)
+{
+    bool bWroteFirstResult = false;
+    while (bNaturalLanguageSequenceActive &&
+        !QueuedNaturalLanguageActions.IsEmpty())
+    {
+        const FQueuedNaturalLanguageAction Step =
+            QueuedNaturalLanguageActions[0];
+        QueuedNaturalLanguageActions.RemoveAt(
+            0,
+            1,
+            EAllowShrinking::No
+        );
+
+        FNPCWorldActionResult Result;
+        const bool bStarted = ExecuteWorldAction(
+            Step.ObjectId,
+            Step.ActionId,
+            Step.Parameters,
+            Result
+        );
+        if (OutFirstResult && !bWroteFirstResult)
+        {
+            *OutFirstResult = Result;
+            bWroteFirstResult = true;
+        }
+
+        UE_LOG(
+            LogTemp,
+            Display,
+            TEXT("NPC_WORLD_ACTION sequence_step npc=%s action=%s "
+                "object=%s success=%d remaining=%d"),
+            GetOwner() ? *GetOwner()->GetName() : TEXT("None"),
+            *Step.ActionId.ToString(),
+            *Step.ObjectId.ToString(),
+            bStarted ? 1 : 0,
+            QueuedNaturalLanguageActions.Num()
+        );
+        if (!bStarted)
+        {
+            FailNaturalLanguageActionSequence(Result.Message);
+            return false;
+        }
+        if (bActionInProgress)
+        {
+            return true;
+        }
+    }
+
+    if (bNaturalLanguageSequenceActive)
+    {
+        bNaturalLanguageSequenceActive = false;
+        bLastNaturalLanguageSequenceSucceeded = true;
+        UE_LOG(
+            LogTemp,
+            Display,
+            TEXT("NPC_WORLD_ACTION sequence_completed npc=%s"),
+            GetOwner() ? *GetOwner()->GetName() : TEXT("None")
+        );
+    }
+    return bLastNaturalLanguageSequenceSucceeded;
 }
 
 FName UNPCWorldStateAgentComponent::ResolveActionIntent(
@@ -1803,8 +2311,76 @@ bool UNPCWorldStateAgentComponent::TryExecuteNaturalLanguageAction(
     FString& OutReply
 )
 {
-    const FName ActionId = ResolveActionIntent(Command);
-    if (ActionId.IsNone())
+    FString IgnoredRemainingCommand;
+    return TryExecuteNaturalLanguageActionDetailed(
+        Command,
+        OutReply,
+        IgnoredRemainingCommand
+    );
+}
+
+bool UNPCWorldStateAgentComponent::TryExecuteNaturalLanguageActionDetailed(
+    const FString& Command,
+    FString& OutReply,
+    FString& OutRemainingCommand
+)
+{
+    OutReply.Reset();
+    OutRemainingCommand.Reset();
+
+    TArray<FQueuedNaturalLanguageAction> ParsedActions;
+    TArray<FString> RemainingClauses;
+    for (const FString& Clause : SplitNaturalLanguageActionClauses(Command))
+    {
+        const FName ActionId = ResolveActionIntent(Clause);
+        if (ActionId.IsNone())
+        {
+            RemainingClauses.Add(Clause);
+            continue;
+        }
+
+        FName TargetId = NAME_None;
+        if (ActionId == TEXT("drop") || ActionId == TEXT("throw"))
+        {
+            AActor* Target = HeldActor.Get();
+            if (!IsValid(Target))
+            {
+                OutReply = TEXT("The NPC is not holding anything.");
+                return true;
+            }
+            TargetId = Target->GetFName();
+            if (const UNPCWorldStateObjectComponent* ObjectComponent =
+                    Target->FindComponentByClass<
+                        UNPCWorldStateObjectComponent>())
+            {
+                TargetId = ObjectComponent->GetResolvedObjectId();
+            }
+        }
+        else
+        {
+            TargetId = ResolveTargetIntent(Clause, ActionId);
+        }
+
+        if (TargetId.IsNone())
+        {
+            OutReply = TEXT(
+                "I cannot find a nearby object that supports that action."
+            );
+            return true;
+        }
+
+        FQueuedNaturalLanguageAction& Parsed =
+            ParsedActions.AddDefaulted_GetRef();
+        Parsed.ObjectId = TargetId;
+        Parsed.ActionId = ActionId;
+        LastMentionedObjectId = TargetId;
+    }
+
+    OutRemainingCommand = FString::Join(
+        RemainingClauses,
+        TEXT(" then ")
+    );
+    if (ParsedActions.IsEmpty())
     {
         const FName MentionedTarget = ResolveTargetIntent(Command, NAME_None);
         if (!MentionedTarget.IsNone())
@@ -1820,48 +2396,36 @@ bool UNPCWorldStateAgentComponent::TryExecuteNaturalLanguageAction(
                 *Command
             );
         }
+        OutRemainingCommand.Reset();
         return false;
     }
 
-    if ((ActionId == TEXT("drop") || ActionId == TEXT("throw")) &&
-        HeldActor.IsValid())
+    if (bNaturalLanguageSequenceActive || bActionInProgress)
     {
-        AActor* Target = HeldActor.Get();
-        FName TargetId = Target ? Target->GetFName() : NAME_None;
-        if (const UNPCWorldStateObjectComponent* ObjectComponent = Target
-            ? Target->FindComponentByClass<UNPCWorldStateObjectComponent>()
-            : nullptr)
-        {
-            TargetId = ObjectComponent->GetResolvedObjectId();
-        }
-        FNPCWorldActionResult Result;
-        ExecuteWorldAction(TargetId, ActionId, FString(), Result);
-        OutReply = Result.Message;
+        OutReply = TEXT(
+            "The NPC is already performing another world action."
+        );
         return true;
     }
 
-    const FName TargetId = ResolveTargetIntent(Command, ActionId);
-    if (TargetId.IsNone())
-    {
-        OutReply = TEXT("I cannot find a nearby object that supports that action.");
-        return true;
-    }
-    LastMentionedObjectId = TargetId;
-
-    FNPCWorldActionResult Result;
-    ExecuteWorldAction(TargetId, ActionId, FString(), Result);
+    QueuedNaturalLanguageActions = MoveTemp(ParsedActions);
+    bNaturalLanguageSequenceActive = true;
+    bLastNaturalLanguageSequenceSucceeded = false;
+    const int32 StepCount = QueuedNaturalLanguageActions.Num();
+    FNPCWorldActionResult FirstResult;
+    const bool bStarted = ContinueNaturalLanguageActionSequence(&FirstResult);
     UE_LOG(
         LogTemp,
         Display,
-        TEXT("NPC_WORLD_ACTION natural_language npc=%s command=%s action=%s "
-            "object=%s success=%d reply=%s"),
+        TEXT("NPC_WORLD_ACTION natural_language_sequence npc=%s command=%s "
+            "steps=%d started=%d remaining_command=%s reply=%s"),
         GetOwner() ? *GetOwner()->GetName() : TEXT("None"),
         *Command,
-        *ActionId.ToString(),
-        *TargetId.ToString(),
-        Result.bSuccess ? 1 : 0,
-        *Result.Message
+        StepCount,
+        bStarted ? 1 : 0,
+        *OutRemainingCommand,
+        *FirstResult.Message
     );
-    OutReply = Result.Message;
+    OutReply = bStarted ? FString() : FirstResult.Message;
     return true;
 }

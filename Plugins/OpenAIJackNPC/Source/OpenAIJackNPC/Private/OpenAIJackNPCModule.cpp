@@ -1,6 +1,6 @@
 #include "OpenAIJackComponent.h"
+#include "OpenAINPCRouter.h"
 
-#include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
 #include "Modules/ModuleManager.h"
 
@@ -11,16 +11,25 @@ public:
     {
         ConsoleCommand = IConsoleManager::Get().RegisterConsoleCommand(
             TEXT("Jack.Say"),
-            TEXT("Send text to Jack. Usage: Jack.Say hello"),
+            TEXT("Send text to the NPC whose ID is Jack."),
             FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(
                 this,
                 &FOpenAIJackNPCModule::HandleJackSay
             ),
             ECVF_Default
         );
+        NPCSayCommand = IConsoleManager::Get().RegisterConsoleCommand(
+            TEXT("NPC.Say"),
+            TEXT("Send text to an NPC. Usage: NPC.Say <NPCID> <message>"),
+            FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(
+                this,
+                &FOpenAIJackNPCModule::HandleNPCSay
+            ),
+            ECVF_Default
+        );
         ClearCommand = IConsoleManager::Get().RegisterConsoleCommand(
             TEXT("Jack.Clear"),
-            TEXT("Clear Jack's conversation memory."),
+            TEXT("Clear the NPC with ID Jack's conversation memory."),
             FConsoleCommandWithWorldDelegate::CreateRaw(
                 this,
                 &FOpenAIJackNPCModule::HandleJackClear
@@ -29,7 +38,7 @@ public:
         );
         ACEWavCommand = IConsoleManager::Get().RegisterConsoleCommand(
             TEXT("Jack.ACEWav"),
-            TEXT("Animate Jack with ACE from a WAV file. Usage: Jack.ACEWav D:\\voice.wav"),
+            TEXT("Animate the NPC with ID Jack from a WAV file."),
             FConsoleCommandWithWorldAndArgsDelegate::CreateRaw(
                 this,
                 &FOpenAIJackNPCModule::HandleJackACEWav
@@ -38,7 +47,7 @@ public:
         );
         STTStartCommand = IConsoleManager::Get().RegisterConsoleCommand(
             TEXT("Jack.STTStart"),
-            TEXT("Start Windows speech recognition for Jack."),
+            TEXT("Start speech recognition for the NPC with ID Jack."),
             FConsoleCommandWithWorldDelegate::CreateRaw(
                 this,
                 &FOpenAIJackNPCModule::HandleJackSTTStart
@@ -47,7 +56,7 @@ public:
         );
         STTStopCommand = IConsoleManager::Get().RegisterConsoleCommand(
             TEXT("Jack.STTStop"),
-            TEXT("Stop Windows speech recognition for Jack."),
+            TEXT("Stop speech recognition for the NPC with ID Jack."),
             FConsoleCommandWithWorldDelegate::CreateRaw(
                 this,
                 &FOpenAIJackNPCModule::HandleJackSTTStop
@@ -56,7 +65,7 @@ public:
         );
         STTToggleCommand = IConsoleManager::Get().RegisterConsoleCommand(
             TEXT("Jack.STTToggle"),
-            TEXT("Toggle Windows speech recognition for Jack."),
+            TEXT("Toggle speech recognition for the NPC with ID Jack."),
             FConsoleCommandWithWorldDelegate::CreateRaw(
                 this,
                 &FOpenAIJackNPCModule::HandleJackSTTToggle
@@ -67,143 +76,189 @@ public:
 
     virtual void ShutdownModule() override
     {
-        if (ConsoleCommand)
-        {
-            IConsoleManager::Get().UnregisterConsoleObject(ConsoleCommand);
-            ConsoleCommand = nullptr;
-        }
-        if (ClearCommand)
-        {
-            IConsoleManager::Get().UnregisterConsoleObject(ClearCommand);
-            ClearCommand = nullptr;
-        }
-        if (ACEWavCommand)
-        {
-            IConsoleManager::Get().UnregisterConsoleObject(ACEWavCommand);
-            ACEWavCommand = nullptr;
-        }
-        if (STTStartCommand)
-        {
-            IConsoleManager::Get().UnregisterConsoleObject(STTStartCommand);
-            STTStartCommand = nullptr;
-        }
-        if (STTStopCommand)
-        {
-            IConsoleManager::Get().UnregisterConsoleObject(STTStopCommand);
-            STTStopCommand = nullptr;
-        }
-        if (STTToggleCommand)
-        {
-            IConsoleManager::Get().UnregisterConsoleObject(STTToggleCommand);
-            STTToggleCommand = nullptr;
-        }
+        UnregisterCommand(ConsoleCommand);
+        UnregisterCommand(NPCSayCommand);
+        UnregisterCommand(ClearCommand);
+        UnregisterCommand(ACEWavCommand);
+        UnregisterCommand(STTStartCommand);
+        UnregisterCommand(STTStopCommand);
+        UnregisterCommand(STTToggleCommand);
     }
 
 private:
-    UOpenAIJackComponent* FindJack(UWorld* World) const
+    static void UnregisterCommand(IConsoleObject*& Command)
     {
-        if (!IsValid(World))
+        if (Command)
         {
+            IConsoleManager::Get().UnregisterConsoleObject(Command);
+            Command = nullptr;
+        }
+    }
+
+    UOpenAIJackComponent* ResolveNPC(
+        UWorld* World,
+        FName NPCID,
+        const TCHAR* CommandName
+    ) const
+    {
+        int32 MatchCount = 0;
+        UOpenAIJackComponent* Component =
+            OpenAINPCRouter::FindUniqueNPC(
+                World,
+                NPCID,
+                MatchCount
+            );
+
+        if (!IsValid(Component))
+        {
+            UE_LOG(
+                LogTemp,
+                Error,
+                TEXT(
+                    "OPENAI_NPC_ROUTE_ERROR command=%s target=%s "
+                    "matches=%d available=%s"
+                ),
+                CommandName,
+                *NPCID.ToString(),
+                MatchCount,
+                *OpenAINPCRouter::DescribeAvailableNPCs(World)
+            );
             return nullptr;
         }
 
-        for (TActorIterator<AActor> ActorIterator(World); ActorIterator; ++ActorIterator)
+        const AActor* Owner = Component->GetOwner();
+        UE_LOG(
+            LogTemp,
+            Display,
+            TEXT(
+                "OPENAI_NPC_ROUTE command=%s target=%s actor=%s "
+                "resolved_id=%s"
+            ),
+            CommandName,
+            *NPCID.ToString(),
+            IsValid(Owner) ? *Owner->GetName() : TEXT("None"),
+            *Component->GetResolvedNPCID().ToString()
+        );
+        return Component;
+    }
+
+    void SendTextToNPC(
+        FName NPCID,
+        const TArray<FString>& MessageArgs,
+        UWorld* World,
+        const TCHAR* CommandName
+    ) const
+    {
+        if (!IsValid(World) || MessageArgs.IsEmpty())
         {
-            if (UOpenAIJackComponent* Jack =
-                ActorIterator->FindComponentByClass<UOpenAIJackComponent>())
-            {
-                return Jack;
-            }
+            UE_LOG(
+                LogTemp,
+                Warning,
+                TEXT("OPENAI_NPC_ROUTE_ERROR command=%s reason=MissingMessage"),
+                CommandName
+            );
+            return;
         }
-        return nullptr;
+
+        if (UOpenAIJackComponent* Component =
+            ResolveNPC(World, NPCID, CommandName))
+        {
+            Component->SendPlayerText(
+                FString::Join(MessageArgs, TEXT(" "))
+            );
+        }
     }
 
     void HandleJackSay(const TArray<FString>& Args, UWorld* World)
     {
-        if (!IsValid(World) || Args.IsEmpty())
+        SendTextToNPC(TEXT("Jack"), Args, World, TEXT("Jack.Say"));
+    }
+
+    void HandleNPCSay(const TArray<FString>& Args, UWorld* World)
+    {
+        if (Args.Num() < 2)
         {
-            UE_LOG(LogTemp, Warning, TEXT("Usage: Jack.Say <message>"));
+            UE_LOG(
+                LogTemp,
+                Warning,
+                TEXT("Usage: NPC.Say <NPCID> <message>")
+            );
             return;
         }
 
-        const FString Message = FString::Join(Args, TEXT(" "));
-        if (UOpenAIJackComponent* Jack = FindJack(World))
-        {
-            Jack->SendPlayerText(Message);
-            return;
-        }
-
-        UE_LOG(LogTemp, Error, TEXT("OPENAI_JACK_ERROR Jack component not found"));
+        TArray<FString> MessageArgs = Args;
+        const FName TargetNPCID(*MessageArgs[0]);
+        MessageArgs.RemoveAt(0);
+        SendTextToNPC(
+            TargetNPCID,
+            MessageArgs,
+            World,
+            TEXT("NPC.Say")
+        );
     }
 
     void HandleJackClear(UWorld* World)
     {
-        if (!IsValid(World))
+        if (UOpenAIJackComponent* Component =
+            ResolveNPC(World, TEXT("Jack"), TEXT("Jack.Clear")))
         {
-            return;
+            Component->ClearConversation();
         }
-
-        if (UOpenAIJackComponent* Jack = FindJack(World))
-        {
-            Jack->ClearConversation();
-            return;
-        }
-
-        UE_LOG(LogTemp, Error, TEXT("OPENAI_JACK_ERROR Jack component not found"));
     }
 
-    void HandleJackACEWav(const TArray<FString>& Args, UWorld* World)
+    void HandleJackACEWav(
+        const TArray<FString>& Args,
+        UWorld* World
+    )
     {
         if (!IsValid(World) || Args.IsEmpty())
         {
-            UE_LOG(LogTemp, Warning, TEXT("Usage: Jack.ACEWav <wav_path>"));
+            UE_LOG(
+                LogTemp,
+                Warning,
+                TEXT("Usage: Jack.ACEWav <wav_path>")
+            );
             return;
         }
 
-        const FString WavPath = FString::Join(Args, TEXT(" "));
-        if (UOpenAIJackComponent* Jack = FindJack(World))
+        if (UOpenAIJackComponent* Component =
+            ResolveNPC(World, TEXT("Jack"), TEXT("Jack.ACEWav")))
         {
-            Jack->AnimateWavFileWithACE(WavPath);
-            return;
+            Component->AnimateWavFileWithACE(
+                FString::Join(Args, TEXT(" "))
+            );
         }
-
-        UE_LOG(LogTemp, Error, TEXT("OPENAI_JACK_ERROR Jack component not found"));
     }
 
     void HandleJackSTTStart(UWorld* World)
     {
-        if (UOpenAIJackComponent* Jack = FindJack(World))
+        if (UOpenAIJackComponent* Component =
+            ResolveNPC(World, TEXT("Jack"), TEXT("Jack.STTStart")))
         {
-            Jack->StartWindowsSTT();
-            return;
+            Component->StartWindowsSTT();
         }
-
-        UE_LOG(LogTemp, Error, TEXT("OPENAI_JACK_ERROR Jack component not found"));
     }
 
     void HandleJackSTTStop(UWorld* World)
     {
-        if (UOpenAIJackComponent* Jack = FindJack(World))
+        if (UOpenAIJackComponent* Component =
+            ResolveNPC(World, TEXT("Jack"), TEXT("Jack.STTStop")))
         {
-            Jack->StopWindowsSTT();
-            return;
+            Component->StopWindowsSTT();
         }
-
-        UE_LOG(LogTemp, Error, TEXT("OPENAI_JACK_ERROR Jack component not found"));
     }
 
     void HandleJackSTTToggle(UWorld* World)
     {
-        if (UOpenAIJackComponent* Jack = FindJack(World))
+        if (UOpenAIJackComponent* Component =
+            ResolveNPC(World, TEXT("Jack"), TEXT("Jack.STTToggle")))
         {
-            Jack->ToggleWindowsSTT();
-            return;
+            Component->ToggleWindowsSTT();
         }
-
-        UE_LOG(LogTemp, Error, TEXT("OPENAI_JACK_ERROR Jack component not found"));
     }
 
     IConsoleObject* ConsoleCommand = nullptr;
+    IConsoleObject* NPCSayCommand = nullptr;
     IConsoleObject* ClearCommand = nullptr;
     IConsoleObject* ACEWavCommand = nullptr;
     IConsoleObject* STTStartCommand = nullptr;

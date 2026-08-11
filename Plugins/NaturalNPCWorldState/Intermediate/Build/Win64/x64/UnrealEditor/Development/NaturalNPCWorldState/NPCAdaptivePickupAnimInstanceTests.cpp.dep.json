@@ -1,0 +1,25 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\source\\naturalnpcworldstate\\private\\tests\\npcadaptivepickupaniminstancetests.cpp",
+        "ProvidedModule": "",
+        "PCH": "d:\\ue_projects\\naturalnpc\\intermediate\\build\\win64\\x64\\naturalnpceditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.valexpapi.cpp20.h.pch",
+        "Includes": [
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\naturalnpcworldstate\\definitions.naturalnpcworldstate.h",
+            "d:\\unrealengine\\ue_5.7\\engine\\source\\runtime\\engine\\classes\\animation\\animsinglenodeinstance.h",
+            "d:\\unrealengine\\ue_5.7\\engine\\intermediate\\build\\win64\\unrealeditor\\inc\\engine\\uht\\animsinglenodeinstance.generated.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\source\\naturalnpcworldstate\\public\\npcadaptivepickupaniminstance.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcworldstate\\uht\\npcadaptivepickupaniminstance.generated.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\source\\naturalnpcworldstate\\public\\npcworldstateagentcomponent.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\source\\naturalnpcworldstate\\public\\npcworldstatetypes.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcworldstate\\uht\\npcworldstatetypes.generated.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcworldstate\\uht\\npcworldstateagentcomponent.generated.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\source\\naturalnpcworldstate\\public\\npcworldstateobjectcomponent.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcworldstate\\uht\\npcworldstateobjectcomponent.generated.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\source\\naturalnpcworldstate\\public\\npcworldstatesubsystem.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcworldstate\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcworldstate\\uht\\npcworldstatesubsystem.generated.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

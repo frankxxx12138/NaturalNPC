@@ -5,11 +5,15 @@ param(
     [int]$SttPort = 8030,
     [string]$TtsModelKind = "turbo",
     [string]$TtsDevice = "cuda",
-    [string]$TtsPrewarmText = "Sure.",
+    [string]$TtsPrewarmText = "",
+    [int]$TtsIdleUnloadSeconds = 60,
+    [int]$TtsMaxMemoryVoiceConditions = 4,
     [string]$SttModel = "small",
     [string]$SttDevice = "cpu",
     [string]$SttComputeType = "int8",
     [string]$SttLanguage = "auto",
+    [int]$SttIdleUnloadSeconds = 60,
+    [switch]$Warmup,
     [switch]$NoWarmup,
     [switch]$NoSTT,
     [switch]$DryRun
@@ -83,8 +87,8 @@ function Test-Ollama() {
 }
 
 function Warm-OllamaModel() {
-    if ($NoWarmup) {
-        Write-Host "Skipping Ollama model warmup."
+    if ($NoWarmup -or -not $Warmup) {
+        Write-Host "Skipping Ollama model warmup (models load on first use)."
         return
     }
 
@@ -103,7 +107,7 @@ function Warm-OllamaModel() {
         )
         stream = $false
         think = $false
-        keep_alive = "10m"
+        keep_alive = "60s"
         options = @{
             num_ctx = 4096
             num_gpu = 999
@@ -128,17 +132,9 @@ function Test-Tts() {
     }
 
     try {
-        $body = @{
-            text = $TtsPrewarmText
-            language_code = "en-US"
-        } | ConvertTo-Json -Depth 4
-        Invoke-WebRequest `
-            -Method Post `
-            -Uri "http://127.0.0.1:$TtsPort/tts" `
-            -ContentType "application/json" `
-            -Body $body `
-            -TimeoutSec 30 `
-            -UseBasicParsing | Out-Null
+        Invoke-RestMethod `
+            -Uri "http://127.0.0.1:$TtsPort/health" `
+            -TimeoutSec 3 | Out-Null
         Write-Host "Chatterbox TTS is responding on port $TtsPort."
         return $true
     }
@@ -165,8 +161,12 @@ function Start-Tts() {
         "--device", $TtsDevice,
         "--model-kind", $TtsModelKind,
         "--cache-dir", $TtsCacheDir,
-        "--prewarm-text", $TtsPrewarmText
+        "--idle-unload-seconds", "$TtsIdleUnloadSeconds",
+        "--max-memory-voice-conditions", "$TtsMaxMemoryVoiceConditions"
     )
+    if ($Warmup -and -not $NoWarmup -and $TtsPrewarmText) {
+        $args += @("--prewarm-text", $TtsPrewarmText)
+    }
 
     Write-Host "Starting Chatterbox TTS on http://127.0.0.1:$TtsPort/tts..."
     $process = Start-Process `
@@ -221,7 +221,8 @@ function Start-Stt() {
         "--model", $SttModel,
         "--device", $SttDevice,
         "--compute-type", $SttComputeType,
-        "--language", $SttLanguage
+        "--language", $SttLanguage,
+        "--idle-unload-seconds", "$SttIdleUnloadSeconds"
     )
 
     Write-Host "Starting Whisper STT on http://127.0.0.1:$SttPort..."
@@ -254,6 +255,7 @@ if ($DryRun) {
     Write-Host "TTS Script: $TtsServerScript"
     Write-Host "STT Python: $SttPython"
     Write-Host "STT Script: $SttServerScript"
+    Write-Host "Warmup: $Warmup"
     exit 0
 }
 
@@ -274,19 +276,17 @@ else {
     Wait-TcpPort -Port $TtsPort -TimeoutSeconds 120 -Name "Chatterbox TTS"
 }
 
-if (-not $NoWarmup) {
-    $ttsReady = $false
-    $deadline = (Get-Date).AddSeconds(180)
-    while ((Get-Date) -lt $deadline) {
-        if (Test-Tts) {
-            $ttsReady = $true
-            break
-        }
-        Start-Sleep -Seconds 2
+$ttsReady = $false
+$deadline = (Get-Date).AddSeconds(180)
+while ((Get-Date) -lt $deadline) {
+    if (Test-Tts) {
+        $ttsReady = $true
+        break
     }
-    if (-not $ttsReady) {
-        throw "Chatterbox TTS did not respond to /tts within 180 seconds."
-    }
+    Start-Sleep -Seconds 2
+}
+if (-not $ttsReady) {
+    throw "Chatterbox TTS health check failed within 180 seconds."
 }
 
 Write-Step "Starting Whisper STT"

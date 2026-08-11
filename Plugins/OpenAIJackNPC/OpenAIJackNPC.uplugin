@@ -15,6 +15,10 @@
   ],
   "Plugins": [
     {
+      "Name": "NaturalNPCConversationGovernance",
+      "Enabled": true
+    },
+    {
       "Name": "NaturalNPCWorldState",
       "Enabled": true
     },

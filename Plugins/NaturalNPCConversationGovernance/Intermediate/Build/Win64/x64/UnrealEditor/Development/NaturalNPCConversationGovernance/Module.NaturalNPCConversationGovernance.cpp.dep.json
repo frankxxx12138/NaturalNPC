@@ -1,0 +1,31 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\naturalnpcconversationgovernance\\module.naturalnpcconversationgovernance.cpp",
+        "ProvidedModule": "",
+        "PCH": "d:\\ue_projects\\naturalnpc\\intermediate\\build\\win64\\x64\\naturalnpceditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.valexpapi.cpp20.h.pch",
+        "Includes": [
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\naturalnpcconversationgovernance\\definitions.naturalnpcconversationgovernance.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationgovernancecomponent.gen.cpp",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\source\\naturalnpcconversationgovernance\\public\\conversationgovernancecomponent.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\source\\naturalnpcconversationgovernance\\public\\conversationgovernancetypes.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationgovernancetypes.generated.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationgovernancecomponent.generated.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationgovernancetypes.gen.cpp",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationlistenercomponent.gen.cpp",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\source\\naturalnpcconversationgovernance\\public\\conversationlistenercomponent.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationlistenercomponent.generated.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationresponsequeue.gen.cpp",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\source\\naturalnpcconversationgovernance\\public\\conversationresponsequeue.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationresponsequeue.generated.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationturnmanager.gen.cpp",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\source\\naturalnpcconversationgovernance\\public\\conversationturnmanager.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationturnmanager.generated.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\naturalnpcconversationgovernance.init.gen.cpp",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\naturalnpcconversationgovernance\\permoduleinline.gen.cpp",
+            "d:\\unrealengine\\ue_5.7\\engine\\source\\runtime\\core\\public\\hal\\permoduleinline.inl"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

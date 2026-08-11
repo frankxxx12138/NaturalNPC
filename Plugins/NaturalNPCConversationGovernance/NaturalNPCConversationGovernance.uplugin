@@ -1,0 +1,16 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "Natural NPC Conversation Governance",
+  "Description": "Dialogue-provider-independent multi-NPC listening, turn ownership, candidate submission, and response queue governance.",
+  "Category": "AI",
+  "CanContainContent": false,
+  "Modules": [
+    {
+      "Name": "NaturalNPCConversationGovernance",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

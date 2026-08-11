@@ -49,6 +49,8 @@
 /Plugins/OpenAIJackNPC/Intermediate/
 /Plugins/NaturalNPCGazeSelector/Binaries/
 /Plugins/NaturalNPCGazeSelector/Intermediate/
+/Plugins/NaturalNPCPlayerMode/Binaries/
+/Plugins/NaturalNPCPlayerMode/Intermediate/
 /Plugins/NvAudio2FaceMark/Binaries/
 /Plugins/NvAudio2FaceMark/Intermediate/
 /Plugins/NV_ACE_Reference/Intermediate/
@@ -89,6 +91,9 @@ __pycache__/
 /Plugins/NV_ACE_Reference/ThirdParty/Nvigi/Binaries/Win64/nvinfer_10.dll
 /Plugins/NV_ACE_Reference/ThirdParty/Nvigi/Binaries/Win64/nvinfer_plugin_10.dll
 /Content/Human2.uasset
+/Content/Human1.uasset
+/Content/MetaHumans/Human1/Grooms/Hair_M_BobMessy.uasset
+/LargeFiles/
 /Content/NewMetaHumanCharacter.uasset
 /Content/MetaHumans/Common/Face/Face_Archetype.uasset
 /Content/MetaHumans/Human2/Face/SKM_Human2_FaceMesh.uasset

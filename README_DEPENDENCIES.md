@@ -103,6 +103,43 @@ The Chatterbox TTS environment is local machine setup and should remain outside 
 Start-NaturalNPCServices.bat
 ```
 
+The default launcher uses a memory-optimized idle mode:
+
+- Ollama models load on first use and requests keep them resident for 60
+  seconds instead of 10 minutes.
+- The dedicated Ollama service starts a lightweight runner watchdog. It checks
+  that every `llama-server.exe` still has a live parent from the expected
+  Ollama installation, removes verified orphan runners during startup and
+  service shutdown, and also cleans them after an unexpected daemon exit.
+- Chatterbox and faster-whisper run heavy inference in disposable workers.
+  Consecutive requests reuse the worker, then the worker exits after 60 idle
+  seconds while the lightweight HTTP health service remains available.
+- Chatterbox inference is serialized across NPCs because one PyTorch model is
+  shared by Jack, Oliver, and other listeners.
+- Chatterbox analyzes each distinct reference WAV once. Up to four recent
+  voice conditions remain in the worker, and serialized condition tensors are
+  stored under `Saved/TTSCache/Chatterbox/VoiceConditionals` so a restarted
+  worker can restore a voice without analyzing the WAV again. The cache key
+  includes the model type plus the WAV path, size, and modification time, so
+  replacing a reference recording invalidates it automatically.
+- ACE remains prewarmed for dialogue latency, but the OpenAI NPC components
+  coordinate one shared provider allocation instead of warming once per NPC.
+
+Use explicit warmup only when lower first-request latency is more important
+than idle memory:
+
+```powershell
+.\Scripts\Start-NaturalNPCServices.ps1 -Warmup -TtsPrewarmText "Sure."
+```
+
+Always stop the project services with the provided script. It checks both PID
+files and the real listening ports so virtual-environment child processes are
+not left behind:
+
+```powershell
+.\Scripts\Stop-NaturalNPCServices.ps1
+```
+
 6. Open the Unreal project:
 
 ```text

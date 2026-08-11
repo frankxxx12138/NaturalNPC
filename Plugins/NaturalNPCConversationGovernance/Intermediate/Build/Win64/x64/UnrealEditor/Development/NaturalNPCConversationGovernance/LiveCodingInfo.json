@@ -1,0 +1,20 @@
+{
+	"RemapUnityFiles": 
+	{
+		"Module.NaturalNPCConversationGovernance.cpp.obj": [
+			"ConversationGovernanceComponent.gen.cpp.obj",
+			"ConversationGovernanceTypes.gen.cpp.obj",
+			"ConversationListenerComponent.gen.cpp.obj",
+			"ConversationResponseQueue.gen.cpp.obj",
+			"ConversationTurnManager.gen.cpp.obj",
+			"NaturalNPCConversationGovernance.init.gen.cpp.obj",
+			"PerModuleInline.gen.cpp.obj",
+			"ConversationGovernanceComponent.cpp.obj",
+			"ConversationListenerComponent.cpp.obj",
+			"ConversationResponseQueue.cpp.obj",
+			"ConversationTurnManager.cpp.obj",
+			"NaturalNPCConversationGovernanceModule.cpp.obj",
+			"ConversationGovernanceTests.cpp.obj"
+		]
+	}
+}

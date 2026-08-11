@@ -288,6 +288,57 @@ DEFINE_FUNCTION(UNPCWorldStateAgentComponent::execExecuteWorldAction)
 }
 // ********** End Class UNPCWorldStateAgentComponent Function ExecuteWorldAction *******************
 
+// ********** Begin Class UNPCWorldStateAgentComponent Function GetCurrentHeldIdleAnimation ********
+struct Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics
+{
+	struct NPCWorldStateAgentComponent_eventGetCurrentHeldIdleAnimation_Parms
+	{
+		UAnimSequence* ReturnValue;
+	};
+#if WITH_METADATA
+	static constexpr UECodeGen_Private::FMetaDataPairParam Function_MetaDataParams[] = {
+		{ "Category", "NPC World State|Animation" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+#endif // WITH_METADATA
+
+// ********** Begin Function GetCurrentHeldIdleAnimation constinit property declarations ***********
+	static const UECodeGen_Private::FObjectPropertyParams NewProp_ReturnValue;
+	static const UECodeGen_Private::FPropertyParamsBase* const PropPointers[];
+// ********** End Function GetCurrentHeldIdleAnimation constinit property declarations *************
+	static const UECodeGen_Private::FFunctionParams FuncParams;
+};
+
+// ********** Begin Function GetCurrentHeldIdleAnimation Property Definitions **********************
+const UECodeGen_Private::FObjectPropertyParams Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::NewProp_ReturnValue = { "ReturnValue", nullptr, (EPropertyFlags)0x0010000000000580, UECodeGen_Private::EPropertyGenFlags::Object, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(NPCWorldStateAgentComponent_eventGetCurrentHeldIdleAnimation_Parms, ReturnValue), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(0, nullptr) };
+const UECodeGen_Private::FPropertyParamsBase* const Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::PropPointers[] = {
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::NewProp_ReturnValue,
+};
+static_assert(UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::PropPointers) < 2048);
+// ********** End Function GetCurrentHeldIdleAnimation Property Definitions ************************
+const UECodeGen_Private::FFunctionParams Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::FuncParams = { { (UObject*(*)())Z_Construct_UClass_UNPCWorldStateAgentComponent, nullptr, "GetCurrentHeldIdleAnimation", 	Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::PropPointers, 
+	UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::PropPointers), 
+sizeof(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::NPCWorldStateAgentComponent_eventGetCurrentHeldIdleAnimation_Parms),
+RF_Public|RF_Transient|RF_MarkAsNative, (EFunctionFlags)0x54020401, 0, 0, METADATA_PARAMS(UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::Function_MetaDataParams), Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::Function_MetaDataParams)},  };
+static_assert(sizeof(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::NPCWorldStateAgentComponent_eventGetCurrentHeldIdleAnimation_Parms) < MAX_uint16);
+UFunction* Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation()
+{
+	static UFunction* ReturnFunction = nullptr;
+	if (!ReturnFunction)
+	{
+		UECodeGen_Private::ConstructUFunction(&ReturnFunction, Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation_Statics::FuncParams);
+	}
+	return ReturnFunction;
+}
+DEFINE_FUNCTION(UNPCWorldStateAgentComponent::execGetCurrentHeldIdleAnimation)
+{
+	P_FINISH;
+	P_NATIVE_BEGIN;
+	*(UAnimSequence**)Z_Param__Result=P_THIS->GetCurrentHeldIdleAnimation();
+	P_NATIVE_END;
+}
+// ********** End Class UNPCWorldStateAgentComponent Function GetCurrentHeldIdleAnimation **********
+
 // ********** Begin Class UNPCWorldStateAgentComponent Function GetHeldActor ***********************
 struct Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldActor_Statics
 {
@@ -338,6 +389,57 @@ DEFINE_FUNCTION(UNPCWorldStateAgentComponent::execGetHeldActor)
 	P_NATIVE_END;
 }
 // ********** End Class UNPCWorldStateAgentComponent Function GetHeldActor *************************
+
+// ********** Begin Class UNPCWorldStateAgentComponent Function GetHeldWalkAnimation ***************
+struct Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics
+{
+	struct NPCWorldStateAgentComponent_eventGetHeldWalkAnimation_Parms
+	{
+		UAnimSequence* ReturnValue;
+	};
+#if WITH_METADATA
+	static constexpr UECodeGen_Private::FMetaDataPairParam Function_MetaDataParams[] = {
+		{ "Category", "NPC World State|Animation" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+#endif // WITH_METADATA
+
+// ********** Begin Function GetHeldWalkAnimation constinit property declarations ******************
+	static const UECodeGen_Private::FObjectPropertyParams NewProp_ReturnValue;
+	static const UECodeGen_Private::FPropertyParamsBase* const PropPointers[];
+// ********** End Function GetHeldWalkAnimation constinit property declarations ********************
+	static const UECodeGen_Private::FFunctionParams FuncParams;
+};
+
+// ********** Begin Function GetHeldWalkAnimation Property Definitions *****************************
+const UECodeGen_Private::FObjectPropertyParams Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::NewProp_ReturnValue = { "ReturnValue", nullptr, (EPropertyFlags)0x0010000000000580, UECodeGen_Private::EPropertyGenFlags::Object, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(NPCWorldStateAgentComponent_eventGetHeldWalkAnimation_Parms, ReturnValue), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(0, nullptr) };
+const UECodeGen_Private::FPropertyParamsBase* const Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::PropPointers[] = {
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::NewProp_ReturnValue,
+};
+static_assert(UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::PropPointers) < 2048);
+// ********** End Function GetHeldWalkAnimation Property Definitions *******************************
+const UECodeGen_Private::FFunctionParams Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::FuncParams = { { (UObject*(*)())Z_Construct_UClass_UNPCWorldStateAgentComponent, nullptr, "GetHeldWalkAnimation", 	Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::PropPointers, 
+	UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::PropPointers), 
+sizeof(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::NPCWorldStateAgentComponent_eventGetHeldWalkAnimation_Parms),
+RF_Public|RF_Transient|RF_MarkAsNative, (EFunctionFlags)0x54020401, 0, 0, METADATA_PARAMS(UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::Function_MetaDataParams), Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::Function_MetaDataParams)},  };
+static_assert(sizeof(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::NPCWorldStateAgentComponent_eventGetHeldWalkAnimation_Parms) < MAX_uint16);
+UFunction* Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation()
+{
+	static UFunction* ReturnFunction = nullptr;
+	if (!ReturnFunction)
+	{
+		UECodeGen_Private::ConstructUFunction(&ReturnFunction, Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation_Statics::FuncParams);
+	}
+	return ReturnFunction;
+}
+DEFINE_FUNCTION(UNPCWorldStateAgentComponent::execGetHeldWalkAnimation)
+{
+	P_FINISH;
+	P_NATIVE_BEGIN;
+	*(UAnimSequence**)Z_Param__Result=P_THIS->GetHeldWalkAnimation();
+	P_NATIVE_END;
+}
+// ********** End Class UNPCWorldStateAgentComponent Function GetHeldWalkAnimation *****************
 
 // ********** Begin Class UNPCWorldStateAgentComponent Function GetVisibleWorldObjects *************
 struct Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetVisibleWorldObjects_Statics
@@ -587,6 +689,98 @@ DEFINE_FUNCTION(UNPCWorldStateAgentComponent::execRefreshWorldState)
 }
 // ********** End Class UNPCWorldStateAgentComponent Function RefreshWorldState ********************
 
+// ********** Begin Class UNPCWorldStateAgentComponent Function ResumeHeldIdleAnimation ************
+struct Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics
+{
+	struct NPCWorldStateAgentComponent_eventResumeHeldIdleAnimation_Parms
+	{
+		bool ReturnValue;
+	};
+#if WITH_METADATA
+	static constexpr UECodeGen_Private::FMetaDataPairParam Function_MetaDataParams[] = {
+		{ "Category", "NPC World State|Animation" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+#endif // WITH_METADATA
+
+// ********** Begin Function ResumeHeldIdleAnimation constinit property declarations ***************
+	static void NewProp_ReturnValue_SetBit(void* Obj);
+	static const UECodeGen_Private::FBoolPropertyParams NewProp_ReturnValue;
+	static const UECodeGen_Private::FPropertyParamsBase* const PropPointers[];
+// ********** End Function ResumeHeldIdleAnimation constinit property declarations *****************
+	static const UECodeGen_Private::FFunctionParams FuncParams;
+};
+
+// ********** Begin Function ResumeHeldIdleAnimation Property Definitions **************************
+void Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::NewProp_ReturnValue_SetBit(void* Obj)
+{
+	((NPCWorldStateAgentComponent_eventResumeHeldIdleAnimation_Parms*)Obj)->ReturnValue = 1;
+}
+const UECodeGen_Private::FBoolPropertyParams Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::NewProp_ReturnValue = { "ReturnValue", nullptr, (EPropertyFlags)0x0010000000000580, UECodeGen_Private::EPropertyGenFlags::Bool | UECodeGen_Private::EPropertyGenFlags::NativeBool, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, sizeof(bool), sizeof(NPCWorldStateAgentComponent_eventResumeHeldIdleAnimation_Parms), &Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::NewProp_ReturnValue_SetBit, METADATA_PARAMS(0, nullptr) };
+const UECodeGen_Private::FPropertyParamsBase* const Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::PropPointers[] = {
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::NewProp_ReturnValue,
+};
+static_assert(UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::PropPointers) < 2048);
+// ********** End Function ResumeHeldIdleAnimation Property Definitions ****************************
+const UECodeGen_Private::FFunctionParams Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::FuncParams = { { (UObject*(*)())Z_Construct_UClass_UNPCWorldStateAgentComponent, nullptr, "ResumeHeldIdleAnimation", 	Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::PropPointers, 
+	UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::PropPointers), 
+sizeof(Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::NPCWorldStateAgentComponent_eventResumeHeldIdleAnimation_Parms),
+RF_Public|RF_Transient|RF_MarkAsNative, (EFunctionFlags)0x04020401, 0, 0, METADATA_PARAMS(UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::Function_MetaDataParams), Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::Function_MetaDataParams)},  };
+static_assert(sizeof(Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::NPCWorldStateAgentComponent_eventResumeHeldIdleAnimation_Parms) < MAX_uint16);
+UFunction* Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation()
+{
+	static UFunction* ReturnFunction = nullptr;
+	if (!ReturnFunction)
+	{
+		UECodeGen_Private::ConstructUFunction(&ReturnFunction, Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation_Statics::FuncParams);
+	}
+	return ReturnFunction;
+}
+DEFINE_FUNCTION(UNPCWorldStateAgentComponent::execResumeHeldIdleAnimation)
+{
+	P_FINISH;
+	P_NATIVE_BEGIN;
+	*(bool*)Z_Param__Result=P_THIS->ResumeHeldIdleAnimation();
+	P_NATIVE_END;
+}
+// ********** End Class UNPCWorldStateAgentComponent Function ResumeHeldIdleAnimation **************
+
+// ********** Begin Class UNPCWorldStateAgentComponent Function SuspendHeldIdleAnimation ***********
+struct Z_Construct_UFunction_UNPCWorldStateAgentComponent_SuspendHeldIdleAnimation_Statics
+{
+#if WITH_METADATA
+	static constexpr UECodeGen_Private::FMetaDataPairParam Function_MetaDataParams[] = {
+		{ "Category", "NPC World State|Animation" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+#endif // WITH_METADATA
+
+// ********** Begin Function SuspendHeldIdleAnimation constinit property declarations **************
+// ********** End Function SuspendHeldIdleAnimation constinit property declarations ****************
+	static const UECodeGen_Private::FFunctionParams FuncParams;
+};
+const UECodeGen_Private::FFunctionParams Z_Construct_UFunction_UNPCWorldStateAgentComponent_SuspendHeldIdleAnimation_Statics::FuncParams = { { (UObject*(*)())Z_Construct_UClass_UNPCWorldStateAgentComponent, nullptr, "SuspendHeldIdleAnimation", 	nullptr, 
+	0, 
+0,
+RF_Public|RF_Transient|RF_MarkAsNative, (EFunctionFlags)0x04020401, 0, 0, METADATA_PARAMS(UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_SuspendHeldIdleAnimation_Statics::Function_MetaDataParams), Z_Construct_UFunction_UNPCWorldStateAgentComponent_SuspendHeldIdleAnimation_Statics::Function_MetaDataParams)},  };
+UFunction* Z_Construct_UFunction_UNPCWorldStateAgentComponent_SuspendHeldIdleAnimation()
+{
+	static UFunction* ReturnFunction = nullptr;
+	if (!ReturnFunction)
+	{
+		UECodeGen_Private::ConstructUFunction(&ReturnFunction, Z_Construct_UFunction_UNPCWorldStateAgentComponent_SuspendHeldIdleAnimation_Statics::FuncParams);
+	}
+	return ReturnFunction;
+}
+DEFINE_FUNCTION(UNPCWorldStateAgentComponent::execSuspendHeldIdleAnimation)
+{
+	P_FINISH;
+	P_NATIVE_BEGIN;
+	P_THIS->SuspendHeldIdleAnimation();
+	P_NATIVE_END;
+}
+// ********** End Class UNPCWorldStateAgentComponent Function SuspendHeldIdleAnimation *************
+
 // ********** Begin Class UNPCWorldStateAgentComponent Function TryExecuteNaturalLanguageAction ****
 struct Z_Construct_UFunction_UNPCWorldStateAgentComponent_TryExecuteNaturalLanguageAction_Statics
 {
@@ -760,6 +954,32 @@ struct Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics
 		{ "ClampMin", "0.1" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
 	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_PickupApproachRepathIntervalSeconds_MetaData[] = {
+		{ "Category", "NPC World State|Approach" },
+		{ "ClampMax", "2.0" },
+		{ "ClampMin", "0.05" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+		{ "Units", "s" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_PickupApproachStallSeconds_MetaData[] = {
+		{ "Category", "NPC World State|Approach" },
+		{ "ClampMax", "2.0" },
+		{ "ClampMin", "0.05" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+		{ "Units", "s" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_PickupApproachCandidateCount_MetaData[] = {
+		{ "Category", "NPC World State|Approach" },
+		{ "ClampMax", "32" },
+		{ "ClampMin", "4" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_MaximumPickupApproachRepathFailures_MetaData[] = {
+		{ "Category", "NPC World State|Approach" },
+		{ "ClampMax", "10" },
+		{ "ClampMin", "1" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
 	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_PickupFacingYawOffsetDegrees_MetaData[] = {
 		{ "Category", "NPC World State|Approach" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
@@ -781,6 +1001,10 @@ struct Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics
 		{ "Category", "NPC World State|Animation" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
 	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_DefaultHeldWalkAnimation_MetaData[] = {
+		{ "Category", "NPC World State|Animation" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
 	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_DefaultThrowAnimation_MetaData[] = {
 		{ "Category", "NPC World State|Animation" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
@@ -795,6 +1019,35 @@ struct Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics
 	};
 	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_PickupApproachRunAnimation_MetaData[] = {
 		{ "Category", "NPC World State|Animation" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_bEnableAdaptivePickupIK_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Adaptive Pickup" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_AdaptivePickupIKBlendWindow_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Adaptive Pickup" },
+		{ "ClampMax", "0.45" },
+		{ "ClampMin", "0.05" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_AdaptivePickupPelvisInfluence_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Adaptive Pickup" },
+		{ "ClampMax", "0.75" },
+		{ "ClampMin", "0.0" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_AdaptivePickupMaxPelvisOffset_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Adaptive Pickup" },
+		{ "ClampMax", "65.0" },
+		{ "ClampMin", "0.0" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+		{ "Units", "cm" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_AdaptivePickupMaxArmStretch_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Adaptive Pickup" },
+		{ "ClampMax", "1.2" },
+		{ "ClampMin", "1.0" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
 	};
 	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_OnWorldStateUpdated_MetaData[] = {
@@ -824,16 +1077,27 @@ struct Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics
 	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupApproachRunDistance;
 	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupApproachTimeoutSeconds;
 	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupApproachRotationSpeed;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupApproachRepathIntervalSeconds;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupApproachStallSeconds;
+	static const UECodeGen_Private::FIntPropertyParams NewProp_PickupApproachCandidateCount;
+	static const UECodeGen_Private::FIntPropertyParams NewProp_MaximumPickupApproachRepathFailures;
 	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupFacingYawOffsetDegrees;
 	static const UECodeGen_Private::FFloatPropertyParams NewProp_ThrowImpulse;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_DefaultPickupAnimation;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_DefaultDropAnimation;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_DefaultHeldIdleAnimation;
+	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_DefaultHeldWalkAnimation;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_DefaultThrowAnimation;
 	static const UECodeGen_Private::FStructPropertyParams NewProp_ItemAnimationProfiles_Inner;
 	static const UECodeGen_Private::FArrayPropertyParams NewProp_ItemAnimationProfiles;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_PickupApproachWalkAnimation;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_PickupApproachRunAnimation;
+	static void NewProp_bEnableAdaptivePickupIK_SetBit(void* Obj);
+	static const UECodeGen_Private::FBoolPropertyParams NewProp_bEnableAdaptivePickupIK;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_AdaptivePickupIKBlendWindow;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_AdaptivePickupPelvisInfluence;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_AdaptivePickupMaxPelvisOffset;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_AdaptivePickupMaxArmStretch;
 	static const UECodeGen_Private::FMulticastDelegatePropertyParams NewProp_OnWorldStateUpdated;
 	static const UECodeGen_Private::FMulticastDelegatePropertyParams NewProp_OnWorldActionCompleted;
 	static const UECodeGen_Private::FPropertyParamsBase* const PropPointers[];
@@ -841,24 +1105,32 @@ struct Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics
 	static constexpr UE::CodeGen::FClassNativeFunction Funcs[] = {
 		{ .NameUTF8 = UTF8TEXT("DropHeldActor"), .Pointer = &UNPCWorldStateAgentComponent::execDropHeldActor },
 		{ .NameUTF8 = UTF8TEXT("ExecuteWorldAction"), .Pointer = &UNPCWorldStateAgentComponent::execExecuteWorldAction },
+		{ .NameUTF8 = UTF8TEXT("GetCurrentHeldIdleAnimation"), .Pointer = &UNPCWorldStateAgentComponent::execGetCurrentHeldIdleAnimation },
 		{ .NameUTF8 = UTF8TEXT("GetHeldActor"), .Pointer = &UNPCWorldStateAgentComponent::execGetHeldActor },
+		{ .NameUTF8 = UTF8TEXT("GetHeldWalkAnimation"), .Pointer = &UNPCWorldStateAgentComponent::execGetHeldWalkAnimation },
 		{ .NameUTF8 = UTF8TEXT("GetVisibleWorldObjects"), .Pointer = &UNPCWorldStateAgentComponent::execGetVisibleWorldObjects },
 		{ .NameUTF8 = UTF8TEXT("GetWorldStateJson"), .Pointer = &UNPCWorldStateAgentComponent::execGetWorldStateJson },
 		{ .NameUTF8 = UTF8TEXT("GetWorldStateText"), .Pointer = &UNPCWorldStateAgentComponent::execGetWorldStateText },
 		{ .NameUTF8 = UTF8TEXT("IsWorldActionInProgress"), .Pointer = &UNPCWorldStateAgentComponent::execIsWorldActionInProgress },
 		{ .NameUTF8 = UTF8TEXT("RefreshWorldState"), .Pointer = &UNPCWorldStateAgentComponent::execRefreshWorldState },
+		{ .NameUTF8 = UTF8TEXT("ResumeHeldIdleAnimation"), .Pointer = &UNPCWorldStateAgentComponent::execResumeHeldIdleAnimation },
+		{ .NameUTF8 = UTF8TEXT("SuspendHeldIdleAnimation"), .Pointer = &UNPCWorldStateAgentComponent::execSuspendHeldIdleAnimation },
 		{ .NameUTF8 = UTF8TEXT("TryExecuteNaturalLanguageAction"), .Pointer = &UNPCWorldStateAgentComponent::execTryExecuteNaturalLanguageAction },
 	};
 	static UObject* (*const DependentSingletons[])();
 	static constexpr FClassFunctionLinkInfo FuncInfo[] = {
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_DropHeldActor, "DropHeldActor" }, // 1109412635
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_ExecuteWorldAction, "ExecuteWorldAction" }, // 1176622941
+		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation, "GetCurrentHeldIdleAnimation" }, // 788753097
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldActor, "GetHeldActor" }, // 3721205780
+		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation, "GetHeldWalkAnimation" }, // 2915049033
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetVisibleWorldObjects, "GetVisibleWorldObjects" }, // 3110884374
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetWorldStateJson, "GetWorldStateJson" }, // 2543448436
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetWorldStateText, "GetWorldStateText" }, // 3277560808
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_IsWorldActionInProgress, "IsWorldActionInProgress" }, // 4066902963
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_RefreshWorldState, "RefreshWorldState" }, // 2055611542
+		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_ResumeHeldIdleAnimation, "ResumeHeldIdleAnimation" }, // 1113136043
+		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_SuspendHeldIdleAnimation, "SuspendHeldIdleAnimation" }, // 3693695782
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_TryExecuteNaturalLanguageAction, "TryExecuteNaturalLanguageAction" }, // 670647272
 	};
 	static_assert(UE_ARRAY_COUNT(FuncInfo) < 2048);
@@ -891,16 +1163,30 @@ const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateA
 const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachRunDistance = { "PickupApproachRunDistance", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachRunDistance), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachRunDistance_MetaData), NewProp_PickupApproachRunDistance_MetaData) };
 const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachTimeoutSeconds = { "PickupApproachTimeoutSeconds", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachTimeoutSeconds), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachTimeoutSeconds_MetaData), NewProp_PickupApproachTimeoutSeconds_MetaData) };
 const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachRotationSpeed = { "PickupApproachRotationSpeed", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachRotationSpeed), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachRotationSpeed_MetaData), NewProp_PickupApproachRotationSpeed_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachRepathIntervalSeconds = { "PickupApproachRepathIntervalSeconds", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachRepathIntervalSeconds), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachRepathIntervalSeconds_MetaData), NewProp_PickupApproachRepathIntervalSeconds_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachStallSeconds = { "PickupApproachStallSeconds", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachStallSeconds), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachStallSeconds_MetaData), NewProp_PickupApproachStallSeconds_MetaData) };
+const UECodeGen_Private::FIntPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachCandidateCount = { "PickupApproachCandidateCount", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Int, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachCandidateCount), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachCandidateCount_MetaData), NewProp_PickupApproachCandidateCount_MetaData) };
+const UECodeGen_Private::FIntPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_MaximumPickupApproachRepathFailures = { "MaximumPickupApproachRepathFailures", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Int, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, MaximumPickupApproachRepathFailures), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_MaximumPickupApproachRepathFailures_MetaData), NewProp_MaximumPickupApproachRepathFailures_MetaData) };
 const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupFacingYawOffsetDegrees = { "PickupFacingYawOffsetDegrees", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupFacingYawOffsetDegrees), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupFacingYawOffsetDegrees_MetaData), NewProp_PickupFacingYawOffsetDegrees_MetaData) };
 const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_ThrowImpulse = { "ThrowImpulse", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, ThrowImpulse), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_ThrowImpulse_MetaData), NewProp_ThrowImpulse_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultPickupAnimation = { "DefaultPickupAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, DefaultPickupAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_DefaultPickupAnimation_MetaData), NewProp_DefaultPickupAnimation_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultDropAnimation = { "DefaultDropAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, DefaultDropAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_DefaultDropAnimation_MetaData), NewProp_DefaultDropAnimation_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultHeldIdleAnimation = { "DefaultHeldIdleAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, DefaultHeldIdleAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_DefaultHeldIdleAnimation_MetaData), NewProp_DefaultHeldIdleAnimation_MetaData) };
+const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultHeldWalkAnimation = { "DefaultHeldWalkAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, DefaultHeldWalkAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_DefaultHeldWalkAnimation_MetaData), NewProp_DefaultHeldWalkAnimation_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultThrowAnimation = { "DefaultThrowAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, DefaultThrowAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_DefaultThrowAnimation_MetaData), NewProp_DefaultThrowAnimation_MetaData) };
-const UECodeGen_Private::FStructPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_ItemAnimationProfiles_Inner = { "ItemAnimationProfiles", nullptr, (EPropertyFlags)0x0000000000000000, UECodeGen_Private::EPropertyGenFlags::Struct, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, 0, Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile, METADATA_PARAMS(0, nullptr) }; // 2274357887
-const UECodeGen_Private::FArrayPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_ItemAnimationProfiles = { "ItemAnimationProfiles", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Array, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, ItemAnimationProfiles), EArrayPropertyFlags::None, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_ItemAnimationProfiles_MetaData), NewProp_ItemAnimationProfiles_MetaData) }; // 2274357887
+const UECodeGen_Private::FStructPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_ItemAnimationProfiles_Inner = { "ItemAnimationProfiles", nullptr, (EPropertyFlags)0x0000000000000000, UECodeGen_Private::EPropertyGenFlags::Struct, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, 0, Z_Construct_UScriptStruct_FNPCWorldItemAnimationProfile, METADATA_PARAMS(0, nullptr) }; // 1233827653
+const UECodeGen_Private::FArrayPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_ItemAnimationProfiles = { "ItemAnimationProfiles", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Array, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, ItemAnimationProfiles), EArrayPropertyFlags::None, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_ItemAnimationProfiles_MetaData), NewProp_ItemAnimationProfiles_MetaData) }; // 1233827653
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachWalkAnimation = { "PickupApproachWalkAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachWalkAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachWalkAnimation_MetaData), NewProp_PickupApproachWalkAnimation_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachRunAnimation = { "PickupApproachRunAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachRunAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachRunAnimation_MetaData), NewProp_PickupApproachRunAnimation_MetaData) };
+void Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_bEnableAdaptivePickupIK_SetBit(void* Obj)
+{
+	((UNPCWorldStateAgentComponent*)Obj)->bEnableAdaptivePickupIK = 1;
+}
+const UECodeGen_Private::FBoolPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_bEnableAdaptivePickupIK = { "bEnableAdaptivePickupIK", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Bool | UECodeGen_Private::EPropertyGenFlags::NativeBool, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, sizeof(bool), sizeof(UNPCWorldStateAgentComponent), &Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_bEnableAdaptivePickupIK_SetBit, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_bEnableAdaptivePickupIK_MetaData), NewProp_bEnableAdaptivePickupIK_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_AdaptivePickupIKBlendWindow = { "AdaptivePickupIKBlendWindow", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, AdaptivePickupIKBlendWindow), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_AdaptivePickupIKBlendWindow_MetaData), NewProp_AdaptivePickupIKBlendWindow_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_AdaptivePickupPelvisInfluence = { "AdaptivePickupPelvisInfluence", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, AdaptivePickupPelvisInfluence), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_AdaptivePickupPelvisInfluence_MetaData), NewProp_AdaptivePickupPelvisInfluence_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_AdaptivePickupMaxPelvisOffset = { "AdaptivePickupMaxPelvisOffset", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, AdaptivePickupMaxPelvisOffset), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_AdaptivePickupMaxPelvisOffset_MetaData), NewProp_AdaptivePickupMaxPelvisOffset_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_AdaptivePickupMaxArmStretch = { "AdaptivePickupMaxArmStretch", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, AdaptivePickupMaxArmStretch), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_AdaptivePickupMaxArmStretch_MetaData), NewProp_AdaptivePickupMaxArmStretch_MetaData) };
 const UECodeGen_Private::FMulticastDelegatePropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_OnWorldStateUpdated = { "OnWorldStateUpdated", nullptr, (EPropertyFlags)0x0010000010080000, UECodeGen_Private::EPropertyGenFlags::InlineMulticastDelegate, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, OnWorldStateUpdated), Z_Construct_UDelegateFunction_NaturalNPCWorldState_NPCWorldStateUpdatedEvent__DelegateSignature, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_OnWorldStateUpdated_MetaData), NewProp_OnWorldStateUpdated_MetaData) }; // 2641193384
 const UECodeGen_Private::FMulticastDelegatePropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_OnWorldActionCompleted = { "OnWorldActionCompleted", nullptr, (EPropertyFlags)0x0010000010080000, UECodeGen_Private::EPropertyGenFlags::InlineMulticastDelegate, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, OnWorldActionCompleted), Z_Construct_UDelegateFunction_NaturalNPCWorldState_NPCWorldActionCompletedEvent__DelegateSignature, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_OnWorldActionCompleted_MetaData), NewProp_OnWorldActionCompleted_MetaData) }; // 1034622484
 const UECodeGen_Private::FPropertyParamsBase* const Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::PropPointers[] = {
@@ -918,16 +1204,26 @@ const UECodeGen_Private::FPropertyParamsBase* const Z_Construct_UClass_UNPCWorld
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachRunDistance,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachTimeoutSeconds,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachRotationSpeed,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachRepathIntervalSeconds,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachStallSeconds,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachCandidateCount,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_MaximumPickupApproachRepathFailures,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupFacingYawOffsetDegrees,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_ThrowImpulse,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultPickupAnimation,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultDropAnimation,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultHeldIdleAnimation,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultHeldWalkAnimation,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultThrowAnimation,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_ItemAnimationProfiles_Inner,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_ItemAnimationProfiles,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachWalkAnimation,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachRunAnimation,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_bEnableAdaptivePickupIK,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_AdaptivePickupIKBlendWindow,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_AdaptivePickupPelvisInfluence,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_AdaptivePickupMaxPelvisOffset,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_AdaptivePickupMaxArmStretch,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_OnWorldStateUpdated,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_OnWorldActionCompleted,
 };
@@ -974,10 +1270,10 @@ UNPCWorldStateAgentComponent::~UNPCWorldStateAgentComponent() {}
 struct Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_Statics
 {
 	static constexpr FClassRegisterCompiledInInfo ClassInfo[] = {
-		{ Z_Construct_UClass_UNPCWorldStateAgentComponent, UNPCWorldStateAgentComponent::StaticClass, TEXT("UNPCWorldStateAgentComponent"), &Z_Registration_Info_UClass_UNPCWorldStateAgentComponent, CONSTRUCT_RELOAD_VERSION_INFO(FClassReloadVersionInfo, sizeof(UNPCWorldStateAgentComponent), 2041639925U) },
+		{ Z_Construct_UClass_UNPCWorldStateAgentComponent, UNPCWorldStateAgentComponent::StaticClass, TEXT("UNPCWorldStateAgentComponent"), &Z_Registration_Info_UClass_UNPCWorldStateAgentComponent, CONSTRUCT_RELOAD_VERSION_INFO(FClassReloadVersionInfo, sizeof(UNPCWorldStateAgentComponent), 1524428949U) },
 	};
 }; // Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_Statics 
-static FRegisterCompiledInInfo Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_1021825951{
+static FRegisterCompiledInInfo Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_1106202920{
 	TEXT("/Script/NaturalNPCWorldState"),
 	Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_Statics::ClassInfo, UE_ARRAY_COUNT(Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_Statics::ClassInfo),
 	nullptr, 0,

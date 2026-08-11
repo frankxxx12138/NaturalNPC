@@ -1,0 +1,13 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\source\\naturalnpcconversationgovernance\\private\\naturalnpcconversationgovernancemodule.cpp",
+        "ProvidedModule": "",
+        "PCH": "d:\\ue_projects\\naturalnpc\\intermediate\\build\\win64\\x64\\naturalnpceditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.valexpapi.cpp20.h.pch",
+        "Includes": [
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\naturalnpcconversationgovernance\\definitions.naturalnpcconversationgovernance.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

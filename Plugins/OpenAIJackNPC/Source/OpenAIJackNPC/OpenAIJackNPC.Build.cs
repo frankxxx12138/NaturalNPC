@@ -18,7 +18,9 @@ public class OpenAIJackNPC : ModuleRules
                 "AudioMixer",
                 "Slate",
                 "SlateCore",
+                "NaturalNPCConversationGovernance",
                 "NaturalNPCWorldState",
+                "NavigationSystem",
                 "ACECore",
                 "ACERuntime"
             }

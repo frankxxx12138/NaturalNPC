@@ -25,6 +25,10 @@ struct NATURALNPCWORLDSTATE_API FNPCWorldItemAnimationProfile
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
         Category = "NPC World State|Animation")
+    TSoftObjectPtr<UAnimSequence> HeldWalkAnimation;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation")
     TSoftObjectPtr<UAnimSequence> DropAnimation;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
@@ -35,6 +39,11 @@ struct NATURALNPCWORLDSTATE_API FNPCWorldItemAnimationProfile
         Category = "NPC World State|Animation",
         meta = (ClampMin = "-1.0", ClampMax = "1.0"))
     float PickupEffectTriggerNormalizedTime = -1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation",
+        meta = (ClampMin = "0.01"))
+    float PickupAnimationPlayRate = 1.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
         Category = "NPC World State|Animation")

@@ -1,0 +1,17 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\source\\naturalnpcconversationgovernance\\private\\conversationresponsequeue.cpp",
+        "ProvidedModule": "",
+        "PCH": "d:\\ue_projects\\naturalnpc\\intermediate\\build\\win64\\x64\\naturalnpceditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.valexpapi.cpp20.h.pch",
+        "Includes": [
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\naturalnpcconversationgovernance\\definitions.naturalnpcconversationgovernance.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\source\\naturalnpcconversationgovernance\\public\\conversationresponsequeue.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\source\\naturalnpcconversationgovernance\\public\\conversationgovernancetypes.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationgovernancetypes.generated.h",
+            "d:\\ue_projects\\naturalnpc\\plugins\\naturalnpcconversationgovernance\\intermediate\\build\\win64\\unrealeditor\\inc\\naturalnpcconversationgovernance\\uht\\conversationresponsequeue.generated.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}
