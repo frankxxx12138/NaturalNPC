@@ -10,5 +10,6 @@
 "D:/UE_Projects/NaturalNPC/Plugins/NaturalNPCWorldState/Intermediate/Build/Win64/x64/UnrealEditor/Development/NaturalNPCWorldState/Module.NaturalNPCWorldState.cpp.obj"
 "D:/UE_Projects/NaturalNPC/Plugins/NaturalNPCWorldState/Intermediate/Build/Win64/x64/UnrealEditor/Development/NaturalNPCWorldState/NPCAdaptivePickupAnimInstance.cpp.obj"
 "D:/UE_Projects/NaturalNPC/Plugins/NaturalNPCWorldState/Intermediate/Build/Win64/x64/UnrealEditor/Development/NaturalNPCWorldState/NPCWorldStateAgentComponent.cpp.obj"
+"D:/UE_Projects/NaturalNPC/Plugins/NaturalNPCWorldState/Intermediate/Build/Win64/x64/UnrealEditor/Development/NaturalNPCWorldState/NPCAdaptivePickupAnimInstanceTests.cpp.obj"
 "D:/UE_Projects/NaturalNPC/Plugins/NaturalNPCWorldState/Intermediate/Build/Win64/x64/UnrealEditor/Development/NaturalNPCWorldState/Default.rc2.res"
 /OUT:"D:/UE_Projects/NaturalNPC/Plugins/NaturalNPCWorldState/Intermediate/Build/Win64/x64/UnrealEditor/Development/NaturalNPCWorldState/UnrealEditor-NaturalNPCWorldState.lib"

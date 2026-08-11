@@ -16,7 +16,8 @@
 			"NPCWorldStateObjectComponent.cpp.obj",
 			"NPCWorldStateSubsystem.cpp.obj",
 			"NPCAdaptivePickupAnimInstance.cpp.obj",
-			"NPCWorldStateAgentComponent.cpp.obj"
+			"NPCWorldStateAgentComponent.cpp.obj",
+			"NPCAdaptivePickupAnimInstanceTests.cpp.obj"
 		]
 	}
 }
