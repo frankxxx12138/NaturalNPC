@@ -166,6 +166,8 @@ struct FNPCAdaptivePickupAnimInstanceProxy
         MaxPelvisOffset = PickupInstance->MaxPelvisOffset;
         MaxArmStretch = PickupInstance->MaxArmStretch;
         bUseSupportHand = PickupInstance->bUseSupportHand;
+        bAdjustPelvisAndSpine =
+            PickupInstance->bAdjustPelvisAndSpine;
     }
 
     virtual bool Evaluate(FPoseContext& Output) override
@@ -204,11 +206,12 @@ struct FNPCAdaptivePickupAnimInstanceProxy
                 LogTemp,
                 Display,
                 TEXT("NPC_ADAPTIVE_PICKUP_IK contact target_cs=%s "
-                    "time=%.3f alpha=%.2f support_hand=%d"),
+                    "time=%.3f alpha=%.2f support_hand=%d torso=%d"),
                 *TargetComponentLocation.ToCompactString(),
                 NormalizedTime,
                 ContactAlpha,
-                bUseSupportHand ? 1 : 0
+                bUseSupportHand ? 1 : 0,
+                bAdjustPelvisAndSpine ? 1 : 0
             );
             bLoggedContact = true;
         }
@@ -300,93 +303,97 @@ struct FNPCAdaptivePickupAnimInstanceProxy
             );
         }
 
-        const FVector GripDelta = AdaptiveTarget - CurrentGripLocation;
-        FTransform PelvisTransform = ComponentPose
-            .GetComponentSpaceTransform(Pelvis);
-        FVector PelvisOffset = GripDelta * PelvisInfluence;
-        PelvisOffset.X = FMath::Clamp(PelvisOffset.X, -12.0f, 12.0f);
-        PelvisOffset.Y = FMath::Clamp(PelvisOffset.Y, -12.0f, 12.0f);
-        PelvisOffset.Z = FMath::Clamp(
-            PelvisOffset.Z,
-            -FMath::Min(18.0f, MaxPelvisOffset),
-            MaxPelvisOffset
-        );
-        PelvisTransform.AddToTranslation(PelvisOffset);
-        const TArray<FBoneTransform> PelvisTransforms = {
-            FBoneTransform(Pelvis, PelvisTransform)
-        };
-        ComponentPose.LocalBlendCSBoneTransforms(
-            PelvisTransforms,
-            ContactAlpha
-        );
-
-        if (Spine01 != INDEX_NONE && Spine03 != INDEX_NONE)
+        if (bAdjustPelvisAndSpine)
         {
-            const FVector UpdatedHandR = ComponentPose
-                .GetComponentSpaceTransform(HandR).GetLocation();
-            const FVector UpdatedHandL = HandL != INDEX_NONE
-                ? ComponentPose.GetComponentSpaceTransform(HandL).GetLocation()
-                : UpdatedHandR;
-            const FVector UpdatedGrip = bUseSupportHand
-                ? (UpdatedHandR + UpdatedHandL) * 0.5f
-                : UpdatedHandR;
-            const FVector ChestLocation = ComponentPose
-                .GetComponentSpaceTransform(Spine03).GetLocation();
-            const FQuat AimRotation = GetLimitedAimRotation(
-                UpdatedGrip - ChestLocation,
-                AdaptiveTarget - ChestLocation,
-                32.0f
+            const FVector GripDelta = AdaptiveTarget - CurrentGripLocation;
+            FTransform PelvisTransform = ComponentPose
+                .GetComponentSpaceTransform(Pelvis);
+            FVector PelvisOffset = GripDelta * PelvisInfluence;
+            PelvisOffset.X = FMath::Clamp(PelvisOffset.X, -12.0f, 12.0f);
+            PelvisOffset.Y = FMath::Clamp(PelvisOffset.Y, -12.0f, 12.0f);
+            PelvisOffset.Z = FMath::Clamp(
+                PelvisOffset.Z,
+                -FMath::Min(18.0f, MaxPelvisOffset),
+                MaxPelvisOffset
             );
-
-            FTransform Spine01Transform = ComponentPose
-                .GetComponentSpaceTransform(Spine01);
-            Spine01Transform.SetRotation(
-                FQuat::Slerp(FQuat::Identity, AimRotation, 0.35f) *
-                Spine01Transform.GetRotation()
-            );
-            const TArray<FBoneTransform> Spine01Transforms = {
-                FBoneTransform(Spine01, Spine01Transform)
+            PelvisTransform.AddToTranslation(PelvisOffset);
+            const TArray<FBoneTransform> PelvisTransforms = {
+                FBoneTransform(Pelvis, PelvisTransform)
             };
             ComponentPose.LocalBlendCSBoneTransforms(
-                Spine01Transforms,
+                PelvisTransforms,
                 ContactAlpha
             );
 
-            FTransform Spine03Transform = ComponentPose
-                .GetComponentSpaceTransform(Spine03);
-            Spine03Transform.SetRotation(
-                FQuat::Slerp(FQuat::Identity, AimRotation, 0.30f) *
-                Spine03Transform.GetRotation()
+            if (Spine01 != INDEX_NONE && Spine03 != INDEX_NONE)
+            {
+                const FVector UpdatedHandR = ComponentPose
+                    .GetComponentSpaceTransform(HandR).GetLocation();
+                const FVector UpdatedHandL = HandL != INDEX_NONE
+                    ? ComponentPose.GetComponentSpaceTransform(HandL)
+                        .GetLocation()
+                    : UpdatedHandR;
+                const FVector UpdatedGrip = bUseSupportHand
+                    ? (UpdatedHandR + UpdatedHandL) * 0.5f
+                    : UpdatedHandR;
+                const FVector ChestLocation = ComponentPose
+                    .GetComponentSpaceTransform(Spine03).GetLocation();
+                const FQuat AimRotation = GetLimitedAimRotation(
+                    UpdatedGrip - ChestLocation,
+                    AdaptiveTarget - ChestLocation,
+                    32.0f
+                );
+
+                FTransform Spine01Transform = ComponentPose
+                    .GetComponentSpaceTransform(Spine01);
+                Spine01Transform.SetRotation(
+                    FQuat::Slerp(FQuat::Identity, AimRotation, 0.35f) *
+                    Spine01Transform.GetRotation()
+                );
+                const TArray<FBoneTransform> Spine01Transforms = {
+                    FBoneTransform(Spine01, Spine01Transform)
+                };
+                ComponentPose.LocalBlendCSBoneTransforms(
+                    Spine01Transforms,
+                    ContactAlpha
+                );
+
+                FTransform Spine03Transform = ComponentPose
+                    .GetComponentSpaceTransform(Spine03);
+                Spine03Transform.SetRotation(
+                    FQuat::Slerp(FQuat::Identity, AimRotation, 0.30f) *
+                    Spine03Transform.GetRotation()
+                );
+                const TArray<FBoneTransform> Spine03Transforms = {
+                    FBoneTransform(Spine03, Spine03Transform)
+                };
+                ComponentPose.LocalBlendCSBoneTransforms(
+                    Spine03Transforms,
+                    ContactAlpha
+                );
+            }
+
+            SolveLimb(
+                ComponentPose,
+                ThighR,
+                CalfR,
+                FootR,
+                OriginalFootR,
+                ContactAlpha,
+                true,
+                1.04f
             );
-            const TArray<FBoneTransform> Spine03Transforms = {
-                FBoneTransform(Spine03, Spine03Transform)
-            };
-            ComponentPose.LocalBlendCSBoneTransforms(
-                Spine03Transforms,
-                ContactAlpha
+            SolveLimb(
+                ComponentPose,
+                ThighL,
+                CalfL,
+                FootL,
+                OriginalFootL,
+                ContactAlpha,
+                true,
+                1.04f
             );
         }
-
-        SolveLimb(
-            ComponentPose,
-            ThighR,
-            CalfR,
-            FootR,
-            OriginalFootR,
-            ContactAlpha,
-            true,
-            1.04f
-        );
-        SolveLimb(
-            ComponentPose,
-            ThighL,
-            CalfL,
-            FootL,
-            OriginalFootL,
-            ContactAlpha,
-            true,
-            1.04f
-        );
 
         FVector RightTarget = AdaptiveTarget;
         FVector LeftTarget = AdaptiveTarget;
@@ -445,6 +452,7 @@ private:
     float MaxPelvisOffset = 40.0f;
     float MaxArmStretch = 1.08f;
     bool bUseSupportHand = false;
+    bool bAdjustPelvisAndSpine = true;
     bool bEnabled = false;
     bool bLoggedContact = false;
 };
@@ -453,6 +461,7 @@ void UNPCAdaptivePickupAnimInstance::ConfigurePickup(
     const FVector& InTargetWorldLocation,
     const float InContactNormalizedTime,
     const bool bInUseSupportHand,
+    const bool bInAdjustPelvisAndSpine,
     const float InGripHalfWidth,
     const float InBlendWindow,
     const float InPelvisInfluence,
@@ -465,6 +474,7 @@ void UNPCAdaptivePickupAnimInstance::ConfigurePickup(
         InContactNormalizedTime, 0.0f, 1.0f
     );
     bUseSupportHand = bInUseSupportHand;
+    bAdjustPelvisAndSpine = bInAdjustPelvisAndSpine;
     GripHalfWidth = FMath::Clamp(InGripHalfWidth, 2.0f, 30.0f);
     BlendWindow = FMath::Clamp(InBlendWindow, 0.05f, 0.45f);
     PelvisInfluence = FMath::Clamp(InPelvisInfluence, 0.0f, 0.75f);

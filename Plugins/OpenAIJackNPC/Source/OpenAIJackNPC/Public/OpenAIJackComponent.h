@@ -11,6 +11,7 @@ class UAudioComponent;
 class UAsyncActionAnimateCharacter;
 class UACEAudioCurveSourceComponent;
 class UAnimSequence;
+class UInputAction;
 class AActor;
 class USkeletalMeshComponent;
 class USoundWaveProcedural;
@@ -29,6 +30,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
     Error
 );
 
+UENUM(BlueprintType)
+enum class EJackLLMProvider : uint8
+{
+    OllamaLocal UMETA(DisplayName = "Ollama Local"),
+    OpenAIAPI UMETA(DisplayName = "OpenAI API")
+};
+
 UCLASS(ClassGroup = (OpenAI), meta = (BlueprintSpawnableComponent))
 class OPENAIJACKNPC_API UOpenAIJackComponent : public UActorComponent
 {
@@ -46,6 +54,37 @@ public:
     UFUNCTION(BlueprintPure, Category = "Local AI|Memory Optimization")
     FString GetEffectiveModelKeepAlive() const;
 
+    UFUNCTION(BlueprintPure, Category = "Local AI|LLM Backend")
+    EJackLLMProvider GetEffectiveLLMProvider() const;
+
+    UFUNCTION(BlueprintCallable, Category = "Local AI|LLM Backend")
+    void SetLLMProvider(EJackLLMProvider Provider);
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|LLM Backend")
+    EJackLLMProvider LLMProvider = EJackLLMProvider::OllamaLocal;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|LLM Backend",
+        meta = (EditCondition = "LLMProvider == EJackLLMProvider::OpenAIAPI"))
+    FString OpenAIChatModel = TEXT("gpt-5.6-luna");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|LLM Backend",
+        meta = (EditCondition = "LLMProvider == EJackLLMProvider::OpenAIAPI"))
+    FString OpenAIChatUrl = TEXT("https://api.openai.com/v1/chat/completions");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|LLM Backend",
+        meta = (EditCondition = "LLMProvider == EJackLLMProvider::OpenAIAPI"))
+    FString OpenAIApiKeyEnvironmentVariable = TEXT("OPENAI_API_KEY");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Memory Optimization",
+        meta = (EditCondition = "LLMProvider == EJackLLMProvider::OpenAIAPI"))
+    bool bUnloadLocalModelsWhenUsingOpenAI = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Memory Optimization",
+        meta = (EditCondition = "LLMProvider == EJackLLMProvider::OpenAIAPI"))
+    bool bUseLocalMemoryEmbeddingsInOpenAIMode = false;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
         Category = "Local AI|Autonomous Conversation")
     bool bEnableAutonomousListening = true;
@@ -54,6 +93,30 @@ public:
         Category = "Local AI|Autonomous Conversation",
         meta = (ClampMin = "0.0", Units = "cm"))
     float AutonomousListeningRadius = 1500.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Autonomous Conversation")
+    bool bEnableNearbyConversationContext = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "Local AI|Autonomous Conversation",
+        meta = (ClampMin = "0.0", Units = "cm"))
+    float NearbyConversationContextRadius = 500.0f;
+
+    UFUNCTION(BlueprintPure, Category = "Local AI|Autonomous Conversation")
+    float GetEffectiveConversationListeningRadius() const;
+
+    void RememberConversationExchange(
+        FName PrimaryNPCID,
+        const FString& PlayerText,
+        const FString& PrimaryReply,
+        FName SecondaryNPCID = NAME_None,
+        const FString& SecondaryReply = FString()
+    );
+
+    FString BuildSessionConversationContext(
+        bool bIncludeOwnPrimaryTurns = true
+    ) const;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
         Category = "Local AI|Autonomous Conversation",
@@ -531,6 +594,13 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Local AI|Jack")
     void SendPlayerText(const FString& PlayerText);
 
+    // Executes movement/world commands from an already-completed speech turn
+    // without starting another LLM request or speaking a duplicate reply.
+    bool TryExecuteRecognizedPlayerAction(
+        const FString& PlayerText,
+        FString& OutReply
+    );
+
     UFUNCTION(BlueprintCallable, Category = "Local AI|Autonomous Conversation")
     bool SpeakGovernedText(const FString& ResponseText);
 
@@ -552,6 +622,36 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Speech Input")
     bool bEnableHttpSTT = true;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|OpenAI Realtime",
+        meta = (EditCondition = "LLMProvider == EJackLLMProvider::OpenAIAPI"))
+    bool bEnableOpenAIRealtimeVoice = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|OpenAI Realtime",
+        meta = (EditCondition = "bEnableOpenAIRealtimeVoice"))
+    FString RealtimeStartUrl = TEXT("http://127.0.0.1:8040/realtime/start");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|OpenAI Realtime",
+        meta = (EditCondition = "bEnableOpenAIRealtimeVoice"))
+    FString RealtimeStopUrl = TEXT("http://127.0.0.1:8040/realtime/stop");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|OpenAI Realtime",
+        meta = (EditCondition = "bEnableOpenAIRealtimeVoice"))
+    FString RealtimeSayUrl = TEXT("http://127.0.0.1:8040/realtime/say");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|OpenAI Realtime",
+        meta = (EditCondition = "bEnableOpenAIRealtimeVoice"))
+    FString RealtimeRespondUrl =
+        TEXT("http://127.0.0.1:8040/realtime/respond");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|OpenAI Realtime",
+        meta = (EditCondition = "bEnableOpenAIRealtimeVoice"))
+    FString OpenAIChatProxyUrl =
+        TEXT("http://127.0.0.1:8040/chat/completions");
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|OpenAI Realtime",
+        meta = (EditCondition = "bEnableOpenAIRealtimeVoice"))
+    FString OpenAIRealtimeVoice;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Speech Input",
         meta = (EditCondition = "bEnableHttpSTT"))
     FString HttpSTTStartUrl = TEXT("http://127.0.0.1:8030/stt/start");
@@ -567,6 +667,13 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Speech Input",
         meta = (EditCondition = "bEnableKeyboardPushToTalk"))
     FKey KeyboardPushToTalkKey = EKeys::T;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Speech Input")
+    bool bEnableVRControllerPushToTalk = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Speech Input",
+        meta = (EditCondition = "bEnableVRControllerPushToTalk"))
+    TSoftObjectPtr<UInputAction> VRPushToTalkAction;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Local AI|Jack Speech Input",
         meta = (ClampMin = "0.0", ClampMax = "2.0", EditCondition = "bEnableKeyboardPushToTalk"))
@@ -633,6 +740,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "Local AI|Jack Actions")
     bool IsFollowingPlayer() const { return bFollowingPlayer; }
 
+    static bool IsGroundStepTraversable(
+        float GroundDelta,
+        float MaximumStepUp,
+        float MaximumStepDown
+    );
+
     UFUNCTION(BlueprintPure, Category = "Local AI|Jack Actions")
     bool IsExecutingMoveCommand() const
     {
@@ -679,6 +792,15 @@ private:
         TArray<float> Embedding;
     };
 
+    struct FSessionConversationExchange
+    {
+        FName PrimaryNPCID = NAME_None;
+        FString PlayerText;
+        FString PrimaryReply;
+        FName SecondaryNPCID = NAME_None;
+        FString SecondaryReply;
+    };
+
     struct FSpeechQueueItem
     {
         int32 Id = 0;
@@ -720,9 +842,19 @@ private:
     };
 
     FString GetApiKey() const;
+    FString GetLLMApiKey() const;
+    FString GetResolvedRealtimeVoice() const;
+    FString GetResolvedRealtimeInstructions() const;
+    bool ShouldUseOpenAIRealtimeVoice() const;
+    void UnloadLocalModelsFromMemory();
     bool TryHandleNaturalLanguageAction(
         const FString& PlayerText,
         FString& OutReply
+    );
+    bool TryExecutePlayerAction(
+        const FString& PlayerText,
+        FString& OutReply,
+        bool bSpeakReply
     );
     void TryRunPendingPostWorldActionCommand();
     void SpeakLocalActionReply(
@@ -766,16 +898,19 @@ private:
     bool IsActionNavigationSegmentBlocked(
         const FVector& StartNavigationLocation,
         const FVector& EndNavigationLocation,
-        FHitResult& OutHit
+        FHitResult& OutHit,
+        const AActor* AdditionalIgnoredActor = nullptr
     ) const;
     bool IsActionNavigationLocationBlocked(
-        const FVector& NavigationLocation
+        const FVector& NavigationLocation,
+        const AActor* AdditionalIgnoredActor = nullptr
     ) const;
     bool BuildCollisionAwareNavigationPath(
         const FVector& StartLocation,
         const FVector& GoalLocation,
         TArray<FVector>& OutPathPoints,
-        int32& OutExpandedNodes
+        int32& OutExpandedNodes,
+        const AActor* AdditionalIgnoredActor = nullptr
     ) const;
     bool UpdateActorGroundHeight(
         FVector& InOutLocation,
@@ -822,6 +957,14 @@ private:
     void AddConversationTurn(
         const FString& PlayerText,
         const FString& ReplyText
+    );
+    void RecordSessionConversationExchange(
+        FName PrimaryNPCID,
+        const FString& PlayerText,
+        const FString& PrimaryReply,
+        FName SecondaryNPCID,
+        const FString& SecondaryReply,
+        bool bSaveAfterRecording
     );
     void PublishReplyText(const FString& ReplyText);
     void RequestTurnEmbedding(int32 TurnIndex);
@@ -878,6 +1021,10 @@ private:
     void ApplyACEDirectMorphBridge();
     void ClearACEDirectMorphBridge();
     void UpdateKeyboardPushToTalk(float DeltaTime);
+    bool StartRealtimeVoice();
+    void StopRealtimeVoice();
+    void RequestRealtimeSpeech(const FString& Text);
+    void RequestRealtimeTextResponse(const FString& PlayerText);
     bool StartHttpSTT();
     void StopHttpSTT();
     void PollWindowsSTT();
@@ -1011,9 +1158,13 @@ private:
     bool bHttpSTTListening = false;
     bool bHttpSTTRequestInFlight = false;
     int32 HttpSTTRequestGeneration = 0;
+    bool bRealtimeVoiceListening = false;
+    bool bRealtimeVoiceRequestInFlight = false;
+    int32 RealtimeVoiceRequestGeneration = 0;
 
     TArray<FConversationMessage> ConversationHistory;
     TArray<FConversationMessage> PersistentHistory;
     TArray<FMemoryTurn> MemoryTurns;
+    TArray<FSessionConversationExchange> SessionConversationExchanges;
     bool bBusy = false;
 };

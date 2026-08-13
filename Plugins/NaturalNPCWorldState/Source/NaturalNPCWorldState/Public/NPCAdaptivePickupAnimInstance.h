@@ -21,6 +21,7 @@ public:
         const FVector& InTargetWorldLocation,
         float InContactNormalizedTime,
         bool bInUseSupportHand,
+        bool bInAdjustPelvisAndSpine,
         float InGripHalfWidth,
         float InBlendWindow,
         float InPelvisInfluence,
@@ -43,5 +44,6 @@ private:
     float MaxPelvisOffset = 40.0f;
     float MaxArmStretch = 1.08f;
     bool bUseSupportHand = false;
+    bool bAdjustPelvisAndSpine = true;
     bool bPickupConfigured = false;
 };

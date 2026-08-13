@@ -195,6 +195,7 @@ bool FNPCAdaptivePickupHeightTest::RunTest(const FString& Parameters)
         Mesh->GetComponentTransform().TransformPosition(RaisedTarget),
         ContactNormalizedTime,
         false,
+        true,
         6.0f,
         0.22f,
         0.30f,
@@ -230,6 +231,132 @@ bool FNPCAdaptivePickupHeightTest::RunTest(const FString& Parameters)
         TEXT("The left foot remains planted"),
         FVector::Dist(AdaptiveFootL, BaseFootL) <= 3.0f
     );
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FNPCTablePickupArmOnlyIKTest,
+    "NaturalNPC.WorldState.AdaptivePickup.TableArmOnlyPreservesTorso",
+    EAutomationTestFlags::EditorContext |
+        EAutomationTestFlags::EngineFilter
+)
+
+bool FNPCTablePickupArmOnlyIKTest::RunTest(const FString& Parameters)
+{
+    USkeletalMesh* SkeletalMesh = LoadObject<USkeletalMesh>(
+        nullptr,
+        TEXT("/Game/MetaHumans/Human2/Body/"
+            "SKM_Human2_BodyMesh.SKM_Human2_BodyMesh")
+    );
+    UAnimSequence* TableAnimation = LoadObject<UAnimSequence>(
+        nullptr,
+        TEXT("/Game/MetaHumans/Human2/Animations/Actions/"
+            "Human2_Pickup_Table.Human2_Pickup_Table")
+    );
+    if (!TestNotNull(TEXT("Human2 body mesh is available"), SkeletalMesh) ||
+        !TestNotNull(TEXT("Table pickup animation is available"),
+            TableAnimation))
+    {
+        return false;
+    }
+
+    FAdaptivePickupTestWorld TestWorld;
+    AActor* Actor = TestWorld.Get()->SpawnActor<AActor>();
+    USkeletalMeshComponent* Mesh = NewObject<USkeletalMeshComponent>(Actor);
+    Actor->SetRootComponent(Mesh);
+    Actor->AddInstanceComponent(Mesh);
+    Mesh->SetSkeletalMeshAsset(SkeletalMesh);
+    Mesh->RegisterComponent();
+
+    constexpr float ContactNormalizedTime = 0.41f;
+    const float ContactTime = TableAnimation->GetPlayLength() *
+        ContactNormalizedTime;
+    Mesh->PlayAnimation(TableAnimation, false);
+    UAnimSingleNodeInstance* BaseInstance = Mesh->GetSingleNodeInstance();
+    if (!TestNotNull(TEXT("The base sequence instance is created"),
+            BaseInstance))
+    {
+        return false;
+    }
+    EvaluateAtTime(Mesh, BaseInstance, ContactTime);
+
+    const FVector BasePelvis = Mesh->GetBoneLocation(
+        TEXT("pelvis"), EBoneSpaces::ComponentSpace
+    );
+    const FVector BaseSpine = Mesh->GetBoneLocation(
+        TEXT("spine_03"), EBoneSpaces::ComponentSpace
+    );
+    const FVector BaseHead = Mesh->GetBoneLocation(
+        TEXT("head"), EBoneSpaces::ComponentSpace
+    );
+    const FVector BaseFootR = Mesh->GetBoneLocation(
+        TEXT("foot_r"), EBoneSpaces::ComponentSpace
+    );
+    const FVector BaseFootL = Mesh->GetBoneLocation(
+        TEXT("foot_l"), EBoneSpaces::ComponentSpace
+    );
+    const FVector BaseHand = Mesh->GetBoneLocation(
+        TEXT("hand_r"), EBoneSpaces::ComponentSpace
+    );
+    const FVector ArmTarget = BaseHand + FVector(0.0f, 18.0f, 8.0f);
+
+    Mesh->SetAnimInstanceClass(
+        UNPCAdaptivePickupAnimInstance::StaticClass()
+    );
+    UNPCAdaptivePickupAnimInstance* AdaptiveInstance =
+        Cast<UNPCAdaptivePickupAnimInstance>(Mesh->GetAnimInstance());
+    if (!TestNotNull(TEXT("The adaptive instance is created"),
+            AdaptiveInstance))
+    {
+        return false;
+    }
+    AdaptiveInstance->ConfigurePickup(
+        Mesh->GetComponentTransform().TransformPosition(ArmTarget),
+        ContactNormalizedTime,
+        false,
+        false,
+        6.0f,
+        0.22f,
+        0.30f,
+        40.0f,
+        1.08f
+    );
+    AdaptiveInstance->SetAnimationAsset(TableAnimation, false, 1.0f);
+    AdaptiveInstance->SetPlaying(true);
+    EvaluateAtTime(Mesh, AdaptiveInstance, ContactTime);
+
+    TestTrue(
+        TEXT("Arm-only IK moves the hand toward the table target"),
+        FVector::Dist(
+            Mesh->GetBoneLocation(TEXT("hand_r"),
+                EBoneSpaces::ComponentSpace),
+            ArmTarget
+        ) <= 12.0f
+    );
+    const auto TestBoneUnchanged = [this, Mesh](
+        const TCHAR* Label,
+        const FName Bone,
+        const FVector& Expected
+    )
+    {
+        return TestTrue(
+            Label,
+            FVector::Dist(
+                Mesh->GetBoneLocation(Bone, EBoneSpaces::ComponentSpace),
+                Expected
+            ) <= 0.5f
+        );
+    };
+    TestBoneUnchanged(TEXT("Arm-only IK preserves the pelvis"),
+        TEXT("pelvis"), BasePelvis);
+    TestBoneUnchanged(TEXT("Arm-only IK preserves the spine"),
+        TEXT("spine_03"), BaseSpine);
+    TestBoneUnchanged(TEXT("Arm-only IK preserves the head"),
+        TEXT("head"), BaseHead);
+    TestBoneUnchanged(TEXT("Arm-only IK preserves the right foot"),
+        TEXT("foot_r"), BaseFootR);
+    TestBoneUnchanged(TEXT("Arm-only IK preserves the left foot"),
+        TEXT("foot_l"), BaseFootL);
     return true;
 }
 
@@ -277,6 +404,8 @@ bool FNPCCompoundWorldActionSequenceTest::RunTest(
     Agent->bAutoRefresh = false;
     Agent->bApproachPickupTargets = false;
     Agent->DefaultPickupAnimation.Reset();
+    Agent->GroundPickupAnimation.Reset();
+    Agent->TablePickupAnimation.Reset();
     Agent->DefaultDropAnimation.Reset();
     Agent->ItemAnimationProfiles.Reset();
     Agent->RegisterComponent();
@@ -377,6 +506,99 @@ bool FNPCCompoundWorldActionSequenceTest::RunTest(
         FString(TEXT("follow me"))
     );
     TestTrue(TEXT("A successful sequence needs no error reply"), Reply.IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FNPCPickupAnimationVariantTest,
+    "NaturalNPC.WorldState.AdaptivePickup.SelectsGroundAndTableAnimations",
+    EAutomationTestFlags::EditorContext |
+        EAutomationTestFlags::EngineFilter
+)
+
+bool FNPCPickupAnimationVariantTest::RunTest(const FString& Parameters)
+{
+    USkeletalMesh* SkeletalMesh = LoadObject<USkeletalMesh>(
+        nullptr,
+        TEXT("/Game/MetaHumans/Human2/Body/"
+            "SKM_Human2_BodyMesh.SKM_Human2_BodyMesh")
+    );
+    UAnimSequence* GroundAnimation = LoadObject<UAnimSequence>(
+        nullptr,
+        TEXT("/Game/MetaHumans/Human2/Animations/Actions/"
+            "Human2_Pickup_Floor.Human2_Pickup_Floor")
+    );
+    UAnimSequence* TableAnimation = LoadObject<UAnimSequence>(
+        nullptr,
+        TEXT("/Game/MetaHumans/Human2/Animations/Actions/"
+            "Human2_Pickup_Table.Human2_Pickup_Table")
+    );
+    if (!TestNotNull(TEXT("Human2 body mesh is available"), SkeletalMesh) ||
+        !TestNotNull(TEXT("Ground pickup animation is available"),
+            GroundAnimation) ||
+        !TestNotNull(TEXT("Table pickup animation is available"),
+            TableAnimation))
+    {
+        return false;
+    }
+
+    FAdaptivePickupTestWorld TestWorld;
+    UWorld* World = TestWorld.Get();
+    if (!TestNotNull(TEXT("A test world can be created"), World))
+    {
+        return false;
+    }
+
+    AActor* NPC = World->SpawnActor<AActor>();
+    USkeletalMeshComponent* Body = NewObject<USkeletalMeshComponent>(
+        NPC,
+        TEXT("Body")
+    );
+    NPC->SetRootComponent(Body);
+    NPC->AddInstanceComponent(Body);
+    Body->SetSkeletalMeshAsset(SkeletalMesh);
+    Body->RegisterComponent();
+
+    UNPCWorldStateAgentComponent* Agent =
+        NewObject<UNPCWorldStateAgentComponent>(NPC);
+    NPC->AddInstanceComponent(Agent);
+    Agent->bAutoRefresh = false;
+    Agent->GroundPickupAnimation = GroundAnimation;
+    Agent->TablePickupAnimation = TableAnimation;
+    Agent->TablePickupMinimumHeight = 55.0f;
+    Agent->RegisterComponent();
+
+    FVector BoundsOrigin;
+    FVector BoundsExtent;
+    NPC->GetActorBounds(false, BoundsOrigin, BoundsExtent);
+    const float GroundZ = BoundsOrigin.Z - BoundsExtent.Z;
+    const auto SpawnTarget = [World](const FVector& Location)
+    {
+        AActor* Target = World->SpawnActor<AActor>();
+        USceneComponent* Root = NewObject<USceneComponent>(Target);
+        Target->SetRootComponent(Root);
+        Target->AddInstanceComponent(Root);
+        Root->RegisterComponent();
+        Target->SetActorLocation(Location);
+        return Target;
+    };
+
+    AActor* GroundTarget = SpawnTarget(
+        FVector(80.0f, 0.0f, GroundZ + 20.0f)
+    );
+    AActor* TableTarget = SpawnTarget(
+        FVector(80.0f, 0.0f, GroundZ + 90.0f)
+    );
+    TestEqual(
+        TEXT("A low object selects the ground pickup"),
+        Agent->GetPickupAnimationForTarget(GroundTarget),
+        GroundAnimation
+    );
+    TestEqual(
+        TEXT("A raised object selects the table pickup"),
+        Agent->GetPickupAnimationForTarget(TableTarget),
+        TableAnimation
+    );
     return true;
 }
 

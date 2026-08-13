@@ -15,6 +15,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FOpenAIJackSittingLanguageTest::RunTest(const FString& Parameters)
 {
+    TestTrue(
+        TEXT("Floor1's 13.9 cm embedded stair step is traversable"),
+        UOpenAIJackComponent::IsGroundStepTraversable(13.9f, 45.0f, 90.0f)
+    );
+    TestTrue(
+        TEXT("A normal stair descent is traversable"),
+        UOpenAIJackComponent::IsGroundStepTraversable(-20.0f, 45.0f, 90.0f)
+    );
+    TestFalse(
+        TEXT("A bar-height vertical face remains blocked"),
+        UOpenAIJackComponent::IsGroundStepTraversable(100.0f, 45.0f, 90.0f)
+    );
+
     UWorld* World = UWorld::CreateWorld(EWorldType::Game, false);
     if (!TestNotNull(TEXT("Transient test world is created"), World))
     {
@@ -50,6 +63,42 @@ bool FOpenAIJackSittingLanguageTest::RunTest(const FString& Parameters)
 
     Reply.Reset();
     TestTrue(
+        TEXT("English STT variant Standa is treated as stand"),
+        Component->TryExecuteMovementCommand(
+            TEXT("Standa Oliver."),
+            Reply
+        )
+    );
+
+    Reply.Reset();
+    TestTrue(
+        TEXT("Compound stand and follow command prioritizes movement"),
+        Component->TryExecuteMovementCommand(
+            TEXT("Stand up and follow me."),
+            Reply
+        )
+    );
+    TestTrue(
+        TEXT("Compound stand and follow starts following"),
+        Component->IsFollowingPlayer()
+    );
+    Component->StopFollowingPlayer();
+
+    Reply.Reset();
+    TestTrue(
+        TEXT("Compound stand and come command uses the come route"),
+        Component->TryExecuteMovementCommand(
+            TEXT("Stand up and come here."),
+            Reply
+        )
+    );
+    TestTrue(
+        TEXT("Missing player is reported by the come route"),
+        Reply.Contains(TEXT("locate"))
+    );
+
+    Reply.Reset();
+    TestTrue(
         TEXT("Come and sit is recognized before the generic come command"),
         Component->TryExecuteMovementCommand(TEXT("come and sit"), Reply)
     );
@@ -76,6 +125,19 @@ bool FOpenAIJackSittingLanguageTest::RunTest(const FString& Parameters)
     TestTrue(
         TEXT("Chinese sit-near-me searches relative to the player"),
         Reply.Contains(TEXT("locate"))
+    );
+
+    Reply.Reset();
+    TestTrue(
+        TEXT("Completed realtime speech can still execute a local action"),
+        Component->TryExecuteRecognizedPlayerAction(
+            TEXT("come and sit"),
+            Reply
+        )
+    );
+    TestFalse(
+        TEXT("Realtime action routing does not start duplicate speech"),
+        Component->IsBusy()
     );
 
     Reply.Reset();

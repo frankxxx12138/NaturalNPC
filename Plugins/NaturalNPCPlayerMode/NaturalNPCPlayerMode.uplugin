@@ -8,6 +8,10 @@
   "CanContainContent": false,
   "Plugins": [
     {
+      "Name": "EnhancedInput",
+      "Enabled": true
+    },
+    {
       "Name": "XRBase",
       "Enabled": true
     }

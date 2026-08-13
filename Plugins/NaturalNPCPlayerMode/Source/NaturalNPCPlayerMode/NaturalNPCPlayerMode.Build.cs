@@ -11,6 +11,7 @@ public class NaturalNPCPlayerMode : ModuleRules
                 "Core",
                 "CoreUObject",
                 "Engine",
+                "EnhancedInput",
                 "InputCore",
                 "XRBase"
             }

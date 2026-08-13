@@ -11,6 +11,7 @@ public class OpenAIJackNPC : ModuleRules
                 "Core",
                 "CoreUObject",
                 "Engine",
+                "EnhancedInput",
                 "HTTP",
                 "InputCore",
                 "Json",

@@ -140,6 +140,67 @@ not left behind:
 .\Scripts\Stop-NaturalNPCServices.ps1
 ```
 
+## Switching Between OpenAI And The Local LLM
+
+`OpenAIJackComponent` now exposes `LLM Provider` under
+`Local AI > LLM Backend`:
+
+- `Ollama Local` keeps the existing Ollama + Whisper + Chatterbox path.
+- `OpenAI API` sends text chat to OpenAI and, when `Enable OpenAI Realtime
+  Voice` is enabled, uses the local Realtime bridge for speech-to-speech input
+  and output. The bridge keeps the API key outside Unreal assets. By default,
+  changing to this provider also asks Ollama to unload the chat and embedding
+  models, skips local memory embeddings, and therefore releases their VRAM.
+
+The property can be changed in each NPC Blueprint or at runtime with the
+Blueprint-callable `Set LLM Provider` function. A launch-wide override is also
+available:
+
+```text
+-NaturalNPCLLMProvider=OpenAI
+-NaturalNPCLLMProvider=Ollama
+```
+
+The `NATURALNPC_LLM_PROVIDER` environment variable accepts the same values.
+The command-line override takes priority, followed by the environment variable,
+then the component property.
+
+For OpenAI mode, configure the key once as a user environment variable and
+open a new terminal:
+
+```powershell
+setx OPENAI_API_KEY "your-api-key"
+```
+
+Do not put the key in an `.ini`, Blueprint, source file, or batch file. Install
+the one extra Python dependency, then start only the cloud bridge:
+
+```powershell
+.\Scripts\Install-OpenAIRealtime.ps1
+.\Start-NaturalNPCOpenAI.bat
+```
+
+The default voice model is `gpt-realtime-2.1`; it can be changed with the
+launcher's `-Model` parameter. The Realtime path is multimodal audio
+(speech-to-speech). Although the model also accepts image input, this project
+does not currently send viewport frames.
+
+When using OpenAI mode to reduce VRAM pressure, stop the local stack instead of
+running both backends. The component unloads Ollama models, while this command
+also stops local Whisper/TTS services:
+
+```powershell
+.\Stop-NaturalNPCServices.bat
+```
+
+To return to offline/local inference, stop the bridge, select `Ollama Local`,
+and start the original services:
+
+```powershell
+.\Stop-NaturalNPCOpenAI.bat
+.\Start-NaturalNPCServices.bat
+```
+
 6. Open the Unreal project:
 
 ```text

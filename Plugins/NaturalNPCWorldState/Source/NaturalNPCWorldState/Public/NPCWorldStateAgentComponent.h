@@ -112,6 +112,21 @@ public:
     int32 MaximumPickupApproachRepathFailures = 3;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Approach|Grounding",
+        meta = (ClampMin = "1.0", ClampMax = "40.0"))
+    float PickupApproachGroundFollowInterpSpeed = 16.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Approach|Grounding",
+        meta = (ClampMin = "10.0", ClampMax = "100.0", Units = "cm"))
+    float PickupApproachMaximumGroundStepUp = 45.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Approach|Grounding",
+        meta = (ClampMin = "20.0", ClampMax = "200.0", Units = "cm"))
+    float PickupApproachMaximumGroundStepDown = 90.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
         Category = "NPC World State|Approach")
     float PickupFacingYawOffsetDegrees = -90.0f;
 
@@ -122,6 +137,39 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
         Category = "NPC World State|Animation")
     TSoftObjectPtr<UAnimSequence> DefaultPickupAnimation;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Pickup Variants")
+    TSoftObjectPtr<UAnimSequence> GroundPickupAnimation;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Pickup Variants")
+    TSoftObjectPtr<UAnimSequence> TablePickupAnimation;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Pickup Variants",
+        meta = (ClampMin = "20.0", ClampMax = "140.0", Units = "cm"))
+    float TablePickupMinimumHeight = 55.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Pickup Variants",
+        meta = (ClampMin = "0.01"))
+    float GroundPickupAnimationPlayRate = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Pickup Variants",
+        meta = (ClampMin = "0.01"))
+    float TablePickupAnimationPlayRate = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Pickup Variants",
+        meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float GroundPickupEffectTriggerNormalizedTime = 0.29f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite,
+        Category = "NPC World State|Animation|Pickup Variants",
+        meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float TablePickupEffectTriggerNormalizedTime = 0.41f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite,
         Category = "NPC World State|Animation")
@@ -186,6 +234,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "NPC World State")
     FString GetWorldStateJson() const { return CachedWorldStateJson; }
+
+    UFUNCTION(BlueprintPure, Category = "NPC World State|Animation")
+    UAnimSequence* GetPickupAnimationForTarget(AActor* Target) const;
 
     UFUNCTION(BlueprintPure, Category = "NPC World State")
     FString GetWorldStateText() const { return CachedWorldStateText; }
@@ -310,6 +361,10 @@ private:
         const FNPCWorldActionDefinition& Action,
         AActor* Target
     ) const;
+    bool ShouldUseTablePickupAnimation(
+        AActor* Target,
+        float* OutHeightAboveGround = nullptr
+    ) const;
     UAnimSequence* ResolveHeldIdleAnimation(
         const FNPCWorldActionDefinition& Action,
         AActor* Target
@@ -336,7 +391,8 @@ private:
         TArray<FActionAnimationMeshState>& SavedStates,
         AActor* AdaptivePickupTarget = nullptr,
         float PickupContactNormalizedTime = 0.55f,
-        bool bUseSupportHand = false
+        bool bUseSupportHand = false,
+        bool bAdjustPickupPelvisAndSpine = true
     );
     FVector GetTargetInteractionLocation(AActor* Target) const;
     float GetPickupReachDistance(
@@ -350,6 +406,14 @@ private:
         FNPCWorldActionResult& OutResult
     );
     bool RebuildApproachPath(AActor* Target, float ReachDistance);
+    bool FindApproachGroundHeight(
+        const FVector& Location,
+        float& OutGroundZ
+    ) const;
+    bool UpdateApproachGroundHeight(
+        FVector& InOutLocation,
+        float DeltaTime
+    );
     void UpdateApproach(float DeltaTime);
     void UpdateApproachAnimation(bool bRun);
     void BeginPendingActionAtTarget();
@@ -400,7 +464,8 @@ private:
     TArray<FVector> ApproachPathPoints;
     int32 ApproachPathPointIndex = 0;
     float ApproachElapsedSeconds = 0.0f;
-    float ApproachMovementZ = 0.0f;
+    bool bApproachGroundOffsetInitialized = false;
+    float ApproachActorGroundOffsetZ = 0.0f;
     float ApproachRepathElapsedSeconds = 0.0f;
     float ApproachStallElapsedSeconds = 0.0f;
     int32 ApproachRepathFailureCount = 0;

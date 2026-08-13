@@ -56,6 +56,16 @@ public:
         UOpenAIJackComponent* CaptureComponent,
         const FString& PlayerText
     );
+    UOpenAIJackComponent* ResolveRecognizedPlayerTarget(
+        UOpenAIJackComponent* CaptureComponent,
+        const FString& PlayerText,
+        FString& OutReason
+    ) const;
+    bool RouteRecognizedPlayerAction(
+        UOpenAIJackComponent* CaptureComponent,
+        const FString& PlayerText,
+        FString& OutReply
+    );
 
     void NotifyPlayerTextSubmitted(
         UOpenAIJackComponent* PrimaryComponent,
@@ -94,6 +104,12 @@ public:
 
     bool HandlePermissionPlayerText(const FString& PlayerText);
 
+    static bool IsWithinConversationContextRadius(
+        const FVector& SourceLocation,
+        const FVector& ListenerLocation,
+        float Radius
+    );
+
 private:
     enum class ESecondaryExecutionMode : uint8
     {
@@ -117,6 +133,7 @@ private:
         FString PrimaryReply;
         FName SecondaryNPCID = NAME_None;
         FString SecondaryReply;
+        TSet<FName> ContextParticipantNPCIDs;
     };
 
     void EnsureCoordinator();
@@ -161,6 +178,7 @@ private:
         ESecondaryExecutionMode Mode
     );
     void FinishActiveSecondaryResponse();
+    void SynchronizePrimaryExchangeContext();
     void ArchiveCurrentExchange();
     void DiscardRemainingResponses(
         const FString& Reason,
@@ -180,6 +198,8 @@ private:
 
     TArray<FRegisteredNPC> RegisteredNPCs;
     TArray<FExchangeRecord> RecentExchanges;
+    TArray<TWeakObjectPtr<UOpenAIJackComponent>>
+        SynchronizedContextListeners;
     FOpenAINPCEmergencyEventState EmergencyEvent;
     TSet<FString> DeliveredEmergencyWarnings;
 

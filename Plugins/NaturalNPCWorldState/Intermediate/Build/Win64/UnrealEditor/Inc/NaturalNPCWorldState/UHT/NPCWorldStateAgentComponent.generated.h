@@ -47,6 +47,7 @@ NATURALNPCWORLDSTATE_API void FNPCWorldActionCompletedEvent_DelegateWrapper(cons
 	DECLARE_FUNCTION(execExecuteWorldAction); \
 	DECLARE_FUNCTION(execGetVisibleWorldObjects); \
 	DECLARE_FUNCTION(execGetWorldStateText); \
+	DECLARE_FUNCTION(execGetPickupAnimationForTarget); \
 	DECLARE_FUNCTION(execGetWorldStateJson); \
 	DECLARE_FUNCTION(execRefreshWorldState);
 

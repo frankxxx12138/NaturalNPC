@@ -37,6 +37,18 @@ UNPCWorldStateAgentComponent::UNPCWorldStateAgentComponent()
         TEXT("Human2_Pickup_TwoHand.Human2_Pickup_TwoHand")
         )
     );
+    const TSoftObjectPtr<UAnimSequence> GroundPickup(
+        FSoftObjectPath(
+        TEXT("/Game/MetaHumans/Human2/Animations/Actions/")
+        TEXT("Human2_Pickup_Floor.Human2_Pickup_Floor")
+        )
+    );
+    const TSoftObjectPtr<UAnimSequence> TablePickup(
+        FSoftObjectPath(
+        TEXT("/Game/MetaHumans/Human2/Animations/Actions/")
+        TEXT("Human2_Pickup_Table.Human2_Pickup_Table")
+        )
+    );
     const TSoftObjectPtr<UAnimSequence> TwoHandHeldIdle(
         FSoftObjectPath(
         TEXT("/Game/MetaHumans/Human2/Animations/Actions/")
@@ -51,6 +63,8 @@ UNPCWorldStateAgentComponent::UNPCWorldStateAgentComponent()
     );
 
     DefaultPickupAnimation = TwoHandPickup;
+    GroundPickupAnimation = GroundPickup;
+    TablePickupAnimation = TablePickup;
     DefaultDropAnimation = TwoHandPickup;
     DefaultHeldIdleAnimation = TwoHandHeldIdle;
     DefaultHeldWalkAnimation = HeldWalk;
@@ -194,7 +208,8 @@ void UNPCWorldStateAgentComponent::CancelPendingAction()
     ApproachPathPoints.Reset();
     ApproachPathPointIndex = 0;
     ApproachElapsedSeconds = 0.0f;
-    ApproachMovementZ = 0.0f;
+    bApproachGroundOffsetInitialized = false;
+    ApproachActorGroundOffsetZ = 0.0f;
     ApproachRepathElapsedSeconds = 0.0f;
     ApproachStallElapsedSeconds = 0.0f;
     ApproachRepathFailureCount = 0;
@@ -310,10 +325,11 @@ FVector UNPCWorldStateAgentComponent::GetTargetInteractionLocation(
     {
         return FVector::ZeroVector;
     }
-    FVector Origin = Target->GetActorLocation();
+    const FVector ActorLocation = Target->GetActorLocation();
+    FVector Origin = ActorLocation;
     FVector Extent = FVector::ZeroVector;
     Target->GetActorBounds(false, Origin, Extent);
-    return Origin;
+    return Extent.IsNearlyZero() ? ActorLocation : Origin;
 }
 
 float UNPCWorldStateAgentComponent::GetPickupReachDistance(
@@ -738,6 +754,14 @@ UAnimSequence* UNPCWorldStateAgentComponent::ResolveActionAnimation(
 ) const
 {
     TSoftObjectPtr<UAnimSequence> Animation = Action.ActionAnimation;
+    if (Animation.IsNull() && Action.ActionId == TEXT("pickup"))
+    {
+        if (UAnimSequence* HeightSpecificAnimation =
+                GetPickupAnimationForTarget(Target))
+        {
+            return HeightSpecificAnimation;
+        }
+    }
     const FNPCWorldItemAnimationProfile* Profile =
         FindItemAnimationProfile(Target);
     if (Animation.IsNull() && Profile)
@@ -770,6 +794,50 @@ UAnimSequence* UNPCWorldStateAgentComponent::ResolveActionAnimation(
             Animation = DefaultThrowAnimation;
         }
     }
+    return Animation.IsNull() ? nullptr : Animation.LoadSynchronous();
+}
+
+bool UNPCWorldStateAgentComponent::ShouldUseTablePickupAnimation(
+    AActor* Target,
+    float* OutHeightAboveGround
+) const
+{
+    AActor* Owner = GetOwner();
+    if (!IsValid(Owner) || !IsValid(Target))
+    {
+        if (OutHeightAboveGround)
+        {
+            *OutHeightAboveGround = 0.0f;
+        }
+        return false;
+    }
+
+    float GroundZ = 0.0f;
+    if (!FindApproachGroundHeight(Owner->GetActorLocation(), GroundZ))
+    {
+        FVector OwnerBoundsOrigin = Owner->GetActorLocation();
+        FVector OwnerBoundsExtent = FVector::ZeroVector;
+        Owner->GetActorBounds(false, OwnerBoundsOrigin, OwnerBoundsExtent);
+        GroundZ = OwnerBoundsOrigin.Z - OwnerBoundsExtent.Z;
+    }
+
+    const float HeightAboveGround =
+        GetTargetInteractionLocation(Target).Z - GroundZ;
+    if (OutHeightAboveGround)
+    {
+        *OutHeightAboveGround = HeightAboveGround;
+    }
+    return HeightAboveGround >= TablePickupMinimumHeight;
+}
+
+UAnimSequence* UNPCWorldStateAgentComponent::GetPickupAnimationForTarget(
+    AActor* Target
+) const
+{
+    const TSoftObjectPtr<UAnimSequence>& Animation =
+        ShouldUseTablePickupAnimation(Target)
+            ? TablePickupAnimation
+            : GroundPickupAnimation;
     return Animation.IsNull() ? nullptr : Animation.LoadSynchronous();
 }
 
@@ -851,7 +919,8 @@ bool UNPCWorldStateAgentComponent::PlaySynchronizedAnimation(
     TArray<FActionAnimationMeshState>& SavedStates,
     AActor* AdaptivePickupTarget,
     float PickupContactNormalizedTime,
-    bool bUseSupportHand
+    bool bUseSupportHand,
+    bool bAdjustPickupPelvisAndSpine
 )
 {
     if (!Animation || !PrimaryMesh ||
@@ -924,6 +993,7 @@ bool UNPCWorldStateAgentComponent::PlaySynchronizedAnimation(
                     PickupTargetLocation,
                     PickupContactNormalizedTime,
                     bUseSupportHand,
+                    bAdjustPickupPelvisAndSpine,
                     GripHalfWidth,
                     AdaptivePickupIKBlendWindow,
                     AdaptivePickupPelvisInfluence,
@@ -1081,7 +1151,25 @@ bool UNPCWorldStateAgentComponent::StartAnimatedAction(
     }
 
     float RequestedPlayRate = Action.AnimationPlayRate;
-    if (Action.ActionId == TEXT("pickup") &&
+    float PickupHeightAboveGround = 0.0f;
+    const bool bUseTablePickup = Action.ActionId == TEXT("pickup") &&
+        Action.ActionAnimation.IsNull() &&
+        ShouldUseTablePickupAnimation(Target, &PickupHeightAboveGround);
+    const TSoftObjectPtr<UAnimSequence>& HeightPickupAsset = bUseTablePickup
+        ? TablePickupAnimation
+        : GroundPickupAnimation;
+    const bool bUsingHeightSpecificPickup =
+        Action.ActionId == TEXT("pickup") &&
+        Action.ActionAnimation.IsNull() &&
+        !HeightPickupAsset.IsNull() &&
+        Animation == HeightPickupAsset.Get();
+    if (bUsingHeightSpecificPickup)
+    {
+        RequestedPlayRate = bUseTablePickup
+            ? TablePickupAnimationPlayRate
+            : GroundPickupAnimationPlayRate;
+    }
+    else if (Action.ActionId == TEXT("pickup") &&
         Action.ActionAnimation.IsNull())
     {
         if (const FNPCWorldItemAnimationProfile* Profile =
@@ -1106,7 +1194,14 @@ bool UNPCWorldStateAgentComponent::StartAnimatedAction(
     );
     float EffectTriggerNormalizedTime = Action.EffectTriggerNormalizedTime;
     const FNPCWorldItemAnimationProfile* AnimationProfile = nullptr;
-    if (Action.ActionId == TEXT("pickup") &&
+    if (bUsingHeightSpecificPickup)
+    {
+        EffectTriggerNormalizedTime = bUseTablePickup
+            ? TablePickupEffectTriggerNormalizedTime
+            : GroundPickupEffectTriggerNormalizedTime;
+        AnimationProfile = FindItemAnimationProfile(Target);
+    }
+    else if (Action.ActionId == TEXT("pickup") &&
         Action.ActionAnimation.IsNull())
     {
         AnimationProfile = FindItemAnimationProfile(Target);
@@ -1136,6 +1231,22 @@ bool UNPCWorldStateAgentComponent::StartAnimatedAction(
     const bool bUseSupportHand =
         AnimationProfile && AnimationProfile->bCenterObjectBetweenHands;
 
+    if (bUsingHeightSpecificPickup)
+    {
+        UE_LOG(
+            LogTemp,
+            Display,
+            TEXT("NPC_PICKUP_ANIMATION_VARIANT npc=%s target=%s "
+                "variant=%s height=%.1f threshold=%.1f animation=%s"),
+            GetOwner() ? *GetOwner()->GetName() : TEXT("None"),
+            Target ? *Target->GetName() : TEXT("None"),
+            bUseTablePickup ? TEXT("table") : TEXT("ground"),
+            PickupHeightAboveGround,
+            TablePickupMinimumHeight,
+            *Animation->GetPathName()
+        );
+    }
+
     const bool bResumeHeldIdleOnFailure =
         !HeldAnimationMeshStates.IsEmpty() && HeldActor.IsValid();
     RestoreHeldAnimationState();
@@ -1148,7 +1259,8 @@ bool UNPCWorldStateAgentComponent::StartAnimatedAction(
         ActionAnimationMeshStates,
         bAdaptivePickup ? Target : nullptr,
         EffectTriggerNormalizedTime,
-        bUseSupportHand
+        bUseSupportHand,
+        !bUsingHeightSpecificPickup || !bUseTablePickup
     ))
     {
         if (bResumeHeldIdleOnFailure)
@@ -1262,7 +1374,6 @@ bool UNPCWorldStateAgentComponent::StartApproachForAction(
     }
 
     const float ReachDistance = GetPickupReachDistance(Action);
-    ApproachMovementZ = OwnerLocation.Z;
 
     PendingAction = Action;
     PendingActionTarget = Target;
@@ -1276,6 +1387,8 @@ bool UNPCWorldStateAgentComponent::StartApproachForAction(
     ApproachRepathElapsedSeconds = 0.0f;
     ApproachStallElapsedSeconds = 0.0f;
     ApproachRepathFailureCount = 0;
+    bApproachGroundOffsetInitialized = false;
+    ApproachActorGroundOffsetZ = 0.0f;
     ApproachLastTargetLocation = TargetLocation;
     ActiveApproachAnimation.Reset();
 
@@ -1426,13 +1539,8 @@ bool UNPCWorldStateAgentComponent::RebuildApproachPath(
     }
 
     ApproachPathPoints = MoveTemp(BestPathPoints);
-    for (FVector& Point : ApproachPathPoints)
-    {
-        Point.Z = ApproachMovementZ;
-    }
     ApproachPathPointIndex = 0;
     ApproachGoalLocation = BestGoal;
-    ApproachGoalLocation.Z = ApproachMovementZ;
     ApproachLastTargetLocation = TargetLocation;
     ApproachRepathElapsedSeconds = 0.0f;
     ApproachStallElapsedSeconds = 0.0f;
@@ -1477,6 +1585,114 @@ void UNPCWorldStateAgentComponent::UpdateApproachAnimation(bool bRun)
     {
         ActiveApproachAnimation = Animation;
     }
+}
+
+bool UNPCWorldStateAgentComponent::FindApproachGroundHeight(
+    const FVector& Location,
+    float& OutGroundZ
+) const
+{
+    UWorld* World = GetWorld();
+    AActor* Owner = GetOwner();
+    if (!World || !IsValid(Owner))
+    {
+        return false;
+    }
+
+    FCollisionObjectQueryParams ObjectQuery;
+    ObjectQuery.AddObjectTypesToQuery(ECC_WorldStatic);
+    FCollisionQueryParams QueryParams(
+        SCENE_QUERY_STAT(NaturalNPCPickupApproachGround),
+        false,
+        Owner
+    );
+    if (PendingActionTarget.IsValid())
+    {
+        QueryParams.AddIgnoredActor(PendingActionTarget.Get());
+    }
+    if (HeldActor.IsValid())
+    {
+        QueryParams.AddIgnoredActor(HeldActor.Get());
+    }
+
+    const float TraceAbove = FMath::Max(
+        60.0f,
+        PickupApproachMaximumGroundStepUp + 30.0f
+    );
+    const float TraceBelow = FMath::Max(
+        300.0f,
+        PickupApproachMaximumGroundStepDown + 100.0f
+    );
+    const FVector Start(Location.X, Location.Y, Location.Z + TraceAbove);
+    const FVector End(Location.X, Location.Y, Location.Z - TraceBelow);
+    FHitResult Hit;
+    if (!World->LineTraceSingleByObjectType(
+            Hit,
+            Start,
+            End,
+            ObjectQuery,
+            QueryParams))
+    {
+        return false;
+    }
+
+    OutGroundZ = Hit.ImpactPoint.Z;
+    return true;
+}
+
+bool UNPCWorldStateAgentComponent::UpdateApproachGroundHeight(
+    FVector& InOutLocation,
+    float DeltaTime
+)
+{
+    AActor* Owner = GetOwner();
+    if (!IsValid(Owner) || DeltaTime <= 0.0f)
+    {
+        return false;
+    }
+
+    const FVector CurrentLocation = Owner->GetActorLocation();
+    if (!bApproachGroundOffsetInitialized)
+    {
+        float CurrentGroundZ = 0.0f;
+        if (!FindApproachGroundHeight(CurrentLocation, CurrentGroundZ))
+        {
+            return false;
+        }
+        ApproachActorGroundOffsetZ = CurrentLocation.Z - CurrentGroundZ;
+        bApproachGroundOffsetInitialized = true;
+    }
+
+    FVector GroundProbeLocation = InOutLocation;
+    GroundProbeLocation.Z = CurrentLocation.Z;
+    float TargetGroundZ = 0.0f;
+    if (!FindApproachGroundHeight(GroundProbeLocation, TargetGroundZ))
+    {
+        return false;
+    }
+
+    const float CurrentGroundZ =
+        CurrentLocation.Z - ApproachActorGroundOffsetZ;
+    const float GroundDelta = TargetGroundZ - CurrentGroundZ;
+    if (GroundDelta > FMath::Max(
+            10.0f,
+            PickupApproachMaximumGroundStepUp) ||
+        GroundDelta < -FMath::Max(
+            20.0f,
+            PickupApproachMaximumGroundStepDown))
+    {
+        return false;
+    }
+
+    const float TargetActorZ =
+        TargetGroundZ + ApproachActorGroundOffsetZ;
+    InOutLocation.Z = FMath::FInterpTo(
+        CurrentLocation.Z,
+        TargetActorZ,
+        DeltaTime,
+        FMath::Max(1.0f, PickupApproachGroundFollowInterpSpeed)
+    );
+    return true;
 }
 
 void UNPCWorldStateAgentComponent::UpdateApproach(float DeltaTime)
@@ -1544,7 +1760,6 @@ void UNPCWorldStateAgentComponent::UpdateApproach(float DeltaTime)
     }
 
     FVector MoveTarget = TargetLocation;
-    MoveTarget.Z = ApproachMovementZ;
     bool bFollowingPathPoint = false;
     if (ApproachPathPointIndex < ApproachPathPoints.Num())
     {
@@ -1580,7 +1795,14 @@ void UNPCWorldStateAgentComponent::UpdateApproach(float DeltaTime)
 
     const FVector MoveDirection = ToMoveTarget.GetSafeNormal2D();
     FVector NewLocation = OwnerLocation + MoveDirection * MoveDistance;
-    NewLocation.Z = ApproachMovementZ;
+    const bool bGroundHeightValid = UpdateApproachGroundHeight(
+        NewLocation,
+        DeltaTime
+    );
+    if (!bGroundHeightValid)
+    {
+        NewLocation = OwnerLocation;
+    }
     FHitResult SweepHit;
     Owner->SetActorLocation(NewLocation, true, &SweepHit);
     const float ActualMoveDistance = FVector::Dist2D(

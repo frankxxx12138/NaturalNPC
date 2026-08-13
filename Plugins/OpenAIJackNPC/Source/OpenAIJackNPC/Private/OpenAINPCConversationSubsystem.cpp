@@ -3,11 +3,14 @@
 #include "ConversationGovernanceComponent.h"
 #include "ConversationListenerComponent.h"
 #include "ConversationResponseQueue.h"
+#include "Camera/CameraComponent.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformMisc.h"
 #include "HAL/PlatformTime.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
@@ -55,6 +58,41 @@ namespace
 
         const TSharedPtr<FJsonObject>* Message = nullptr;
         if (!Root->TryGetObjectField(TEXT("message"), Message) ||
+            !Message->IsValid())
+        {
+            return FString();
+        }
+
+        FString Content;
+        (*Message)->TryGetStringField(TEXT("content"), Content);
+        return Content.TrimStartAndEnd();
+    }
+
+    FString ExtractOpenAIMessage(const FString& ResponsePayload)
+    {
+        TSharedPtr<FJsonObject> Root;
+        const TSharedRef<TJsonReader<>> Reader =
+            TJsonReaderFactory<>::Create(ResponsePayload);
+        if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+        {
+            return FString();
+        }
+
+        const TArray<TSharedPtr<FJsonValue>>* Choices = nullptr;
+        if (!Root->TryGetArrayField(TEXT("choices"), Choices) ||
+            Choices->IsEmpty())
+        {
+            return FString();
+        }
+
+        const TSharedPtr<FJsonObject>* Choice = nullptr;
+        if (!(*Choices)[0]->TryGetObject(Choice) || !Choice->IsValid())
+        {
+            return FString();
+        }
+
+        const TSharedPtr<FJsonObject>* Message = nullptr;
+        if (!(*Choice)->TryGetObjectField(TEXT("message"), Message) ||
             !Message->IsValid())
         {
             return FString();
@@ -136,6 +174,67 @@ namespace
         }
         return false;
     }
+
+    bool ResolvePlayerView(
+        UWorld* World,
+        FVector& OutLocation,
+        FVector& OutDirection
+    )
+    {
+        APlayerController* PlayerController = World
+            ? World->GetFirstPlayerController()
+            : nullptr;
+        if (!IsValid(PlayerController))
+        {
+            return false;
+        }
+
+        if (APawn* Pawn = PlayerController->GetPawn())
+        {
+            TInlineComponentArray<UCameraComponent*> Cameras(Pawn);
+            UCameraComponent* ActiveFallback = nullptr;
+            for (UCameraComponent* Camera : Cameras)
+            {
+                if (IsValid(Camera) && Camera->IsActive())
+                {
+                    if (Camera->bLockToHmd)
+                    {
+                        OutLocation = Camera->GetComponentLocation();
+                        OutDirection = Camera->GetForwardVector()
+                            .GetSafeNormal();
+                        return true;
+                    }
+                    if (!IsValid(ActiveFallback))
+                    {
+                        ActiveFallback = Camera;
+                    }
+                }
+            }
+            if (IsValid(ActiveFallback))
+            {
+                OutLocation = ActiveFallback->GetComponentLocation();
+                OutDirection = ActiveFallback->GetForwardVector()
+                    .GetSafeNormal();
+                return true;
+            }
+        }
+
+        FRotator ViewRotation;
+        PlayerController->GetPlayerViewPoint(OutLocation, ViewRotation);
+        OutDirection = ViewRotation.Vector().GetSafeNormal();
+        return true;
+    }
+}
+
+bool UOpenAINPCConversationSubsystem::IsWithinConversationContextRadius(
+    const FVector& SourceLocation,
+    const FVector& ListenerLocation,
+    float Radius
+)
+{
+    return Radius > 0.0f &&
+        FVector::DistSquared2D(SourceLocation, ListenerLocation) <=
+            FMath::Square(Radius);
 }
 
 bool UOpenAINPCConversationSubsystem::ShouldCreateSubsystem(
@@ -190,6 +289,7 @@ void UOpenAINPCConversationSubsystem::Deinitialize()
     CoordinatorActor = nullptr;
     RegisteredNPCs.Reset();
     RecentExchanges.Reset();
+    SynchronizedContextListeners.Reset();
     Super::Deinitialize();
 }
 
@@ -261,7 +361,9 @@ bool UOpenAINPCConversationSubsystem::IsSpeechInputCoordinator(
     const UOpenAIJackComponent* Component
 ) const
 {
-    if (!IsValid(Component) || !Component->bEnableKeyboardPushToTalk)
+    if (!IsValid(Component) ||
+        (!Component->bEnableKeyboardPushToTalk &&
+         !Component->bEnableVRControllerPushToTalk))
     {
         return false;
     }
@@ -271,7 +373,9 @@ bool UOpenAINPCConversationSubsystem::IsSpeechInputCoordinator(
     for (const FRegisteredNPC& Registration : RegisteredNPCs)
     {
         const UOpenAIJackComponent* Candidate = Registration.Component.Get();
-        if (!IsValid(Candidate) || !Candidate->bEnableKeyboardPushToTalk)
+        if (!IsValid(Candidate) ||
+            (!Candidate->bEnableKeyboardPushToTalk &&
+             !Candidate->bEnableVRControllerPushToTalk))
         {
             continue;
         }
@@ -337,13 +441,11 @@ UOpenAINPCConversationSubsystem::ResolvePlayerTextTarget(
         : nullptr;
     FVector ViewLocation = FVector::ZeroVector;
     FVector ViewDirection = FVector::ForwardVector;
-    const bool bHasView = IsValid(PlayerController);
-    if (bHasView)
-    {
-        FRotator ViewRotation;
-        PlayerController->GetPlayerViewPoint(ViewLocation, ViewRotation);
-        ViewDirection = ViewRotation.Vector().GetSafeNormal();
-    }
+    const bool bHasView = ResolvePlayerView(
+        World,
+        ViewLocation,
+        ViewDirection
+    );
 
     UOpenAIJackComponent* BestComponent = nullptr;
     float BestScore = -TNumericLimits<float>::Max();
@@ -427,6 +529,37 @@ UOpenAINPCConversationSubsystem::ResolvePlayerTextTarget(
     return BestComponent;
 }
 
+UOpenAIJackComponent*
+UOpenAINPCConversationSubsystem::ResolveRecognizedPlayerTarget(
+    UOpenAIJackComponent* CaptureComponent,
+    const FString& PlayerText,
+    FString& OutReason
+) const
+{
+    UOpenAIJackComponent* Target = ResolvePlayerTextTarget(
+        PlayerText.TrimStartAndEnd(),
+        OutReason
+    );
+    if (!IsValid(Target))
+    {
+        Target = CaptureComponent;
+        OutReason = TEXT("CaptureFallback");
+    }
+    if (IsValid(Target))
+    {
+        EmitAutonomyLog(
+            TEXT("speech_target_resolved"),
+            FString::Printf(
+                TEXT("target=%s reason=%s text=\"%s\""),
+                *Target->GetResolvedNPCID().ToString(),
+                *OutReason,
+                *SanitizeLogText(PlayerText)
+            )
+        );
+    }
+    return Target;
+}
+
 bool UOpenAINPCConversationSubsystem::RouteRecognizedPlayerText(
     UOpenAIJackComponent* CaptureComponent,
     const FString& PlayerText
@@ -439,15 +572,11 @@ bool UOpenAINPCConversationSubsystem::RouteRecognizedPlayerText(
     }
 
     FString Reason;
-    UOpenAIJackComponent* Target = ResolvePlayerTextTarget(
+    UOpenAIJackComponent* Target = ResolveRecognizedPlayerTarget(
+        CaptureComponent,
         TrimmedText,
         Reason
     );
-    if (!IsValid(Target))
-    {
-        Target = CaptureComponent;
-        Reason = TEXT("CaptureFallback");
-    }
     if (!IsValid(Target))
     {
         return false;
@@ -466,6 +595,43 @@ bool UOpenAINPCConversationSubsystem::RouteRecognizedPlayerText(
     return true;
 }
 
+bool UOpenAINPCConversationSubsystem::RouteRecognizedPlayerAction(
+    UOpenAIJackComponent* CaptureComponent,
+    const FString& PlayerText,
+    FString& OutReply
+)
+{
+    const FString TrimmedText = PlayerText.TrimStartAndEnd();
+    OutReply.Reset();
+    if (TrimmedText.IsEmpty())
+    {
+        return false;
+    }
+
+    FString Reason;
+    UOpenAIJackComponent* Target = ResolveRecognizedPlayerTarget(
+        CaptureComponent,
+        TrimmedText,
+        Reason
+    );
+    if (!IsValid(Target) ||
+        !Target->TryExecuteRecognizedPlayerAction(TrimmedText, OutReply))
+    {
+        return false;
+    }
+
+    EmitAutonomyLog(
+        TEXT("speech_action_routed"),
+        FString::Printf(
+            TEXT("target=%s reason=%s text=\"%s\""),
+            *Target->GetResolvedNPCID().ToString(),
+            *Reason,
+            *SanitizeLogText(TrimmedText)
+        )
+    );
+    return true;
+}
+
 void UOpenAINPCConversationSubsystem::NotifyPlayerTextSubmitted(
     UOpenAIJackComponent* PrimaryComponent,
     const FString& PlayerText
@@ -481,6 +647,11 @@ void UOpenAINPCConversationSubsystem::NotifyPlayerTextSubmitted(
         PlayerText.TrimStartAndEnd().IsEmpty())
     {
         return;
+    }
+
+    if (!bExchangeArchived && !CurrentPrimaryReply.IsEmpty())
+    {
+        ArchiveCurrentExchange();
     }
 
     EnsureCoordinator();
@@ -506,6 +677,7 @@ void UOpenAINPCConversationSubsystem::NotifyPlayerTextSubmitted(
     ActiveExecutionMode = ESecondaryExecutionMode::None;
     CurrentSecondaryReply.Reset();
     CurrentSecondaryNPCID = NAME_None;
+    SynchronizedContextListeners.Reset();
 
     if (Governance->IsConversationActive())
     {
@@ -536,6 +708,17 @@ void UOpenAINPCConversationSubsystem::NotifyPlayerTextSubmitted(
         if (!IsValid(Listener))
         {
             continue;
+        }
+
+        if (PrimaryComponent->bEnableNearbyConversationContext)
+        {
+            Listener->ListeningRadius = FMath::Min(
+                Listener->ListeningRadius,
+                FMath::Max(
+                    0.0f,
+                    PrimaryComponent->NearbyConversationContextRadius
+                )
+            );
         }
 
         if (RegisteredComponent == PrimaryComponent)
@@ -594,6 +777,7 @@ void UOpenAINPCConversationSubsystem::NotifyNPCReplyReady(
         )
     );
 
+    SynchronizePrimaryExchangeContext();
     BeginCandidateGeneration();
 }
 
@@ -876,9 +1060,10 @@ UOpenAINPCConversationSubsystem::EnsureListener(
             Component->GetResolvedNPCID().ToString()
         );
     }
+    Listener->ListeningRadius =
+        Component->GetEffectiveConversationListeningRadius();
     if (bCreatedListener)
     {
-        Listener->ListeningRadius = Component->AutonomousListeningRadius;
         Listener->MaximumQueuedResponses = 1;
     }
     Listener->bListenerEnabled = Component->bEnableAutonomousListening;
@@ -1007,15 +1192,36 @@ void UOpenAINPCConversationSubsystem::RequestCandidateFrom(
         ? TEXT("Infer interests conservatively from the character identity.")
         : ListenerComponent->AutonomousInterestSummary;
 
+    const bool bUseOpenAI =
+        ListenerComponent->GetEffectiveLLMProvider() ==
+            EJackLLMProvider::OpenAIAPI;
+    const bool bUseOpenAIProxy = bUseOpenAI &&
+        ListenerComponent->bEnableOpenAIRealtimeVoice &&
+        !ListenerComponent->OpenAIChatProxyUrl.TrimStartAndEnd().IsEmpty();
     TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
-    Body->SetStringField(TEXT("model"), ListenerComponent->Model);
-    Body->SetBoolField(TEXT("stream"), false);
-    Body->SetBoolField(TEXT("think"), false);
     Body->SetStringField(
-        TEXT("keep_alive"),
-        ListenerComponent->GetEffectiveModelKeepAlive()
+        TEXT("model"),
+        bUseOpenAI
+            ? ListenerComponent->OpenAIChatModel
+            : ListenerComponent->Model
     );
-    Body->SetStringField(TEXT("format"), TEXT("json"));
+    Body->SetBoolField(TEXT("stream"), false);
+    if (bUseOpenAI)
+    {
+        Body->SetNumberField(TEXT("max_completion_tokens"), 320);
+        TSharedRef<FJsonObject> ResponseFormat = MakeShared<FJsonObject>();
+        ResponseFormat->SetStringField(TEXT("type"), TEXT("json_object"));
+        Body->SetObjectField(TEXT("response_format"), ResponseFormat);
+    }
+    else
+    {
+        Body->SetBoolField(TEXT("think"), false);
+        Body->SetStringField(
+            TEXT("keep_alive"),
+            ListenerComponent->GetEffectiveModelKeepAlive()
+        );
+        Body->SetStringField(TEXT("format"), TEXT("json"));
+    }
 
     TArray<TSharedPtr<FJsonValue>> Messages;
     TSharedRef<FJsonObject> SystemMessage = MakeShared<FJsonObject>();
@@ -1083,14 +1289,23 @@ void UOpenAINPCConversationSubsystem::RequestCandidateFrom(
     Messages.Add(MakeShared<FJsonValueObject>(UserMessage));
     Body->SetArrayField(TEXT("messages"), Messages);
 
-    TSharedRef<FJsonObject> Options = MakeShared<FJsonObject>();
-    Options->SetNumberField(TEXT("temperature"), 0.45);
-    Options->SetNumberField(TEXT("top_p"), 0.8);
-    Options->SetNumberField(TEXT("top_k"), 32);
-    Options->SetNumberField(TEXT("num_ctx"), ListenerComponent->ContextLength);
-    Options->SetNumberField(TEXT("num_gpu"), ListenerComponent->GpuLayers);
-    Options->SetNumberField(TEXT("num_predict"), 160);
-    Body->SetObjectField(TEXT("options"), Options);
+    if (!bUseOpenAI)
+    {
+        TSharedRef<FJsonObject> Options = MakeShared<FJsonObject>();
+        Options->SetNumberField(TEXT("temperature"), 0.45);
+        Options->SetNumberField(TEXT("top_p"), 0.8);
+        Options->SetNumberField(TEXT("top_k"), 32);
+        Options->SetNumberField(
+            TEXT("num_ctx"),
+            ListenerComponent->ContextLength
+        );
+        Options->SetNumberField(
+            TEXT("num_gpu"),
+            ListenerComponent->GpuLayers
+        );
+        Options->SetNumberField(TEXT("num_predict"), 160);
+        Body->SetObjectField(TEXT("options"), Options);
+    }
 
     FString Json;
     const TSharedRef<TJsonWriter<>> Writer =
@@ -1099,13 +1314,42 @@ void UOpenAINPCConversationSubsystem::RequestCandidateFrom(
 
     const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request =
         FHttpModule::Get().CreateRequest();
-    Request->SetURL(ListenerComponent->OllamaChatUrl);
+    Request->SetURL(
+        bUseOpenAIProxy
+            ? ListenerComponent->OpenAIChatProxyUrl
+            : bUseOpenAI
+            ? ListenerComponent->OpenAIChatUrl
+            : ListenerComponent->OllamaChatUrl
+    );
     Request->SetVerb(TEXT("POST"));
     Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    if (bUseOpenAI && !bUseOpenAIProxy)
+    {
+        const FString ApiKeyEnvironmentVariable =
+            ListenerComponent->OpenAIApiKeyEnvironmentVariable
+                .TrimStartAndEnd();
+        const FString ApiKey = ApiKeyEnvironmentVariable.IsEmpty()
+            ? FString()
+            : FPlatformMisc::GetEnvironmentVariable(
+                *ApiKeyEnvironmentVariable
+            );
+        if (ApiKey.IsEmpty())
+        {
+            HandleCandidatePayload(
+                TWeakObjectPtr<UOpenAIJackComponent>(ListenerComponent),
+                RequestExchangeSerial,
+                RequestConversationID,
+                FString(),
+                TEXT("MissingOpenAIApiKey")
+            );
+            return;
+        }
+        Request->SetHeader(TEXT("Authorization"), TEXT("Bearer ") + ApiKey);
+    }
     Request->SetTimeout(FMath::Clamp(
         ListenerComponent->RequestTimeoutSeconds,
         2.0f,
-        12.0f
+        bUseOpenAI ? 30.0f : 12.0f
     ));
     Request->SetContentAsString(Json);
 
@@ -1118,7 +1362,8 @@ void UOpenAINPCConversationSubsystem::RequestCandidateFrom(
             WeakThis,
             WeakListener,
             RequestExchangeSerial,
-            RequestConversationID
+            RequestConversationID,
+            bUseOpenAI
         ](
             FHttpRequestPtr,
             FHttpResponsePtr Response,
@@ -1147,12 +1392,14 @@ void UOpenAINPCConversationSubsystem::RequestCandidateFrom(
             }
             else
             {
-                Payload = ExtractOllamaMessage(
-                    Response->GetContentAsString()
-                );
+                Payload = bUseOpenAI
+                    ? ExtractOpenAIMessage(Response->GetContentAsString())
+                    : ExtractOllamaMessage(Response->GetContentAsString());
                 if (Payload.IsEmpty())
                 {
-                    Failure = TEXT("MissingOllamaMessage");
+                    Failure = bUseOpenAI
+                        ? TEXT("MissingOpenAIMessage")
+                        : TEXT("MissingOllamaMessage");
                 }
             }
 
@@ -1169,8 +1416,11 @@ void UOpenAINPCConversationSubsystem::RequestCandidateFrom(
     EmitAutonomyLog(
         TEXT("candidate_requested"),
         FString::Printf(
-            TEXT("npc=%s"),
-            *ListenerComponent->GetResolvedNPCID().ToString()
+            TEXT("npc=%s backend=%s"),
+            *ListenerComponent->GetResolvedNPCID().ToString(),
+            bUseOpenAIProxy
+                ? TEXT("openai_proxy")
+                : (bUseOpenAI ? TEXT("openai") : TEXT("ollama"))
         )
     );
 
@@ -1197,8 +1447,14 @@ FString UOpenAINPCConversationSubsystem::BuildCandidateContext(
         ? ListenerComponent->GetResolvedNPCID()
         : NAME_None;
     int32 RecentParticipationCount = 0;
+    int32 VisibleExchangeCount = 0;
     for (const FExchangeRecord& Exchange : RecentExchanges)
     {
+        if (!Exchange.ContextParticipantNPCIDs.Contains(ListenerID))
+        {
+            continue;
+        }
+        ++VisibleExchangeCount;
         Context += FString::Printf(
             TEXT("Player: %s\n%s: %s\n"),
             *Exchange.PlayerText,
@@ -1233,7 +1489,7 @@ FString UOpenAINPCConversationSubsystem::BuildCandidateContext(
             "another contribution would feel natural or repetitive.\n"
         ),
         ListenerID.IsNone() ? TEXT("Listener") : *ListenerID.ToString(),
-        RecentExchanges.Num(),
+        VisibleExchangeCount,
         RecentParticipationCount,
         bSpokeInPreviousExchange ? TEXT("yes") : TEXT("no")
     );
@@ -1952,6 +2208,76 @@ void UOpenAINPCConversationSubsystem::FinishActiveSecondaryResponse()
     ArchiveCurrentExchange();
 }
 
+void UOpenAINPCConversationSubsystem::SynchronizePrimaryExchangeContext()
+{
+    SynchronizedContextListeners.Reset();
+    UOpenAIJackComponent* Primary = ActivePrimary.Get();
+    AActor* PrimaryActor = IsValid(Primary) ? Primary->GetOwner() : nullptr;
+    if (!IsValid(Primary) || !IsValid(PrimaryActor) ||
+        !Primary->bEnableNearbyConversationContext)
+    {
+        return;
+    }
+
+    const float Radius = FMath::Max(
+        0.0f,
+        Primary->NearbyConversationContextRadius
+    );
+    for (const FRegisteredNPC& Registration : RegisteredNPCs)
+    {
+        UOpenAIJackComponent* Listener = Registration.Component.Get();
+        AActor* ListenerActor = IsValid(Listener)
+            ? Listener->GetOwner()
+            : nullptr;
+        if (!IsValid(Listener) || Listener == Primary ||
+            !IsValid(ListenerActor) ||
+            !Listener->bEnableNearbyConversationContext)
+        {
+            continue;
+        }
+
+        const float Distance = FVector::Dist2D(
+            PrimaryActor->GetActorLocation(),
+            ListenerActor->GetActorLocation()
+        );
+        if (!IsWithinConversationContextRadius(
+                PrimaryActor->GetActorLocation(),
+                ListenerActor->GetActorLocation(),
+                Radius))
+        {
+            EmitAutonomyLog(
+                TEXT("context_sync_skipped"),
+                FString::Printf(
+                    TEXT("listener=%s primary=%s distance=%.1f "
+                        "radius=%.1f reason=OutOfRange"),
+                    *Listener->GetResolvedNPCID().ToString(),
+                    *Primary->GetResolvedNPCID().ToString(),
+                    Distance,
+                    Radius
+                )
+            );
+            continue;
+        }
+
+        Listener->RememberConversationExchange(
+            Primary->GetResolvedNPCID(),
+            CurrentPlayerText,
+            CurrentPrimaryReply
+        );
+        SynchronizedContextListeners.AddUnique(Listener);
+        EmitAutonomyLog(
+            TEXT("context_synchronized"),
+            FString::Printf(
+                TEXT("listener=%s primary=%s distance=%.1f radius=%.1f"),
+                *Listener->GetResolvedNPCID().ToString(),
+                *Primary->GetResolvedNPCID().ToString(),
+                Distance,
+                Radius
+            )
+        );
+    }
+}
+
 void UOpenAINPCConversationSubsystem::ArchiveCurrentExchange()
 {
     if (bExchangeArchived || CurrentPrimaryReply.IsEmpty())
@@ -1963,11 +2289,41 @@ void UOpenAINPCConversationSubsystem::ArchiveCurrentExchange()
     if (const UOpenAIJackComponent* Primary = ActivePrimary.Get())
     {
         Record.PrimaryNPCID = Primary->GetResolvedNPCID();
+        Record.ContextParticipantNPCIDs.Add(Record.PrimaryNPCID);
     }
     Record.PlayerText = CurrentPlayerText;
     Record.PrimaryReply = CurrentPrimaryReply;
     Record.SecondaryNPCID = CurrentSecondaryNPCID;
     Record.SecondaryReply = CurrentSecondaryReply;
+    if (UOpenAIJackComponent* Primary = ActivePrimary.Get())
+    {
+        Primary->RememberConversationExchange(
+            Record.PrimaryNPCID,
+            Record.PlayerText,
+            Record.PrimaryReply,
+            Record.SecondaryNPCID,
+            Record.SecondaryReply
+        );
+    }
+    for (const TWeakObjectPtr<UOpenAIJackComponent>& WeakListener :
+         SynchronizedContextListeners)
+    {
+        UOpenAIJackComponent* Listener = WeakListener.Get();
+        if (!IsValid(Listener))
+        {
+            continue;
+        }
+        Listener->RememberConversationExchange(
+            Record.PrimaryNPCID,
+            Record.PlayerText,
+            Record.PrimaryReply,
+            Record.SecondaryNPCID,
+            Record.SecondaryReply
+        );
+        Record.ContextParticipantNPCIDs.Add(
+            Listener->GetResolvedNPCID()
+        );
+    }
     RecentExchanges.Add(MoveTemp(Record));
     if (RecentExchanges.Num() > MaximumRecentExchanges)
     {

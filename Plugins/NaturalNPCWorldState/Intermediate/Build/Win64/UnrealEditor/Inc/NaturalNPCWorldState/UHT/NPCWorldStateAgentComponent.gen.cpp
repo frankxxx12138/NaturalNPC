@@ -441,6 +441,62 @@ DEFINE_FUNCTION(UNPCWorldStateAgentComponent::execGetHeldWalkAnimation)
 }
 // ********** End Class UNPCWorldStateAgentComponent Function GetHeldWalkAnimation *****************
 
+// ********** Begin Class UNPCWorldStateAgentComponent Function GetPickupAnimationForTarget ********
+struct Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics
+{
+	struct NPCWorldStateAgentComponent_eventGetPickupAnimationForTarget_Parms
+	{
+		AActor* Target;
+		UAnimSequence* ReturnValue;
+	};
+#if WITH_METADATA
+	static constexpr UECodeGen_Private::FMetaDataPairParam Function_MetaDataParams[] = {
+		{ "Category", "NPC World State|Animation" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+#endif // WITH_METADATA
+
+// ********** Begin Function GetPickupAnimationForTarget constinit property declarations ***********
+	static const UECodeGen_Private::FObjectPropertyParams NewProp_Target;
+	static const UECodeGen_Private::FObjectPropertyParams NewProp_ReturnValue;
+	static const UECodeGen_Private::FPropertyParamsBase* const PropPointers[];
+// ********** End Function GetPickupAnimationForTarget constinit property declarations *************
+	static const UECodeGen_Private::FFunctionParams FuncParams;
+};
+
+// ********** Begin Function GetPickupAnimationForTarget Property Definitions **********************
+const UECodeGen_Private::FObjectPropertyParams Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::NewProp_Target = { "Target", nullptr, (EPropertyFlags)0x0010000000000080, UECodeGen_Private::EPropertyGenFlags::Object, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(NPCWorldStateAgentComponent_eventGetPickupAnimationForTarget_Parms, Target), Z_Construct_UClass_AActor_NoRegister, METADATA_PARAMS(0, nullptr) };
+const UECodeGen_Private::FObjectPropertyParams Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::NewProp_ReturnValue = { "ReturnValue", nullptr, (EPropertyFlags)0x0010000000000580, UECodeGen_Private::EPropertyGenFlags::Object, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(NPCWorldStateAgentComponent_eventGetPickupAnimationForTarget_Parms, ReturnValue), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(0, nullptr) };
+const UECodeGen_Private::FPropertyParamsBase* const Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::PropPointers[] = {
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::NewProp_Target,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::NewProp_ReturnValue,
+};
+static_assert(UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::PropPointers) < 2048);
+// ********** End Function GetPickupAnimationForTarget Property Definitions ************************
+const UECodeGen_Private::FFunctionParams Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::FuncParams = { { (UObject*(*)())Z_Construct_UClass_UNPCWorldStateAgentComponent, nullptr, "GetPickupAnimationForTarget", 	Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::PropPointers, 
+	UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::PropPointers), 
+sizeof(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::NPCWorldStateAgentComponent_eventGetPickupAnimationForTarget_Parms),
+RF_Public|RF_Transient|RF_MarkAsNative, (EFunctionFlags)0x54020401, 0, 0, METADATA_PARAMS(UE_ARRAY_COUNT(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::Function_MetaDataParams), Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::Function_MetaDataParams)},  };
+static_assert(sizeof(Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::NPCWorldStateAgentComponent_eventGetPickupAnimationForTarget_Parms) < MAX_uint16);
+UFunction* Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget()
+{
+	static UFunction* ReturnFunction = nullptr;
+	if (!ReturnFunction)
+	{
+		UECodeGen_Private::ConstructUFunction(&ReturnFunction, Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget_Statics::FuncParams);
+	}
+	return ReturnFunction;
+}
+DEFINE_FUNCTION(UNPCWorldStateAgentComponent::execGetPickupAnimationForTarget)
+{
+	P_GET_OBJECT(AActor,Z_Param_Target);
+	P_FINISH;
+	P_NATIVE_BEGIN;
+	*(UAnimSequence**)Z_Param__Result=P_THIS->GetPickupAnimationForTarget(Z_Param_Target);
+	P_NATIVE_END;
+}
+// ********** End Class UNPCWorldStateAgentComponent Function GetPickupAnimationForTarget **********
+
 // ********** Begin Class UNPCWorldStateAgentComponent Function GetVisibleWorldObjects *************
 struct Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetVisibleWorldObjects_Statics
 {
@@ -980,6 +1036,26 @@ struct Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics
 		{ "ClampMin", "1" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
 	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_PickupApproachGroundFollowInterpSpeed_MetaData[] = {
+		{ "Category", "NPC World State|Approach|Grounding" },
+		{ "ClampMax", "40.0" },
+		{ "ClampMin", "1.0" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_PickupApproachMaximumGroundStepUp_MetaData[] = {
+		{ "Category", "NPC World State|Approach|Grounding" },
+		{ "ClampMax", "100.0" },
+		{ "ClampMin", "10.0" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+		{ "Units", "cm" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_PickupApproachMaximumGroundStepDown_MetaData[] = {
+		{ "Category", "NPC World State|Approach|Grounding" },
+		{ "ClampMax", "200.0" },
+		{ "ClampMin", "20.0" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+		{ "Units", "cm" },
+	};
 	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_PickupFacingYawOffsetDegrees_MetaData[] = {
 		{ "Category", "NPC World State|Approach" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
@@ -991,6 +1067,43 @@ struct Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics
 	};
 	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_DefaultPickupAnimation_MetaData[] = {
 		{ "Category", "NPC World State|Animation" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_GroundPickupAnimation_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Pickup Variants" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_TablePickupAnimation_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Pickup Variants" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_TablePickupMinimumHeight_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Pickup Variants" },
+		{ "ClampMax", "140.0" },
+		{ "ClampMin", "20.0" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+		{ "Units", "cm" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_GroundPickupAnimationPlayRate_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Pickup Variants" },
+		{ "ClampMin", "0.01" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_TablePickupAnimationPlayRate_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Pickup Variants" },
+		{ "ClampMin", "0.01" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_GroundPickupEffectTriggerNormalizedTime_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Pickup Variants" },
+		{ "ClampMax", "1.0" },
+		{ "ClampMin", "0.0" },
+		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
+	};
+	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_TablePickupEffectTriggerNormalizedTime_MetaData[] = {
+		{ "Category", "NPC World State|Animation|Pickup Variants" },
+		{ "ClampMax", "1.0" },
+		{ "ClampMin", "0.0" },
 		{ "ModuleRelativePath", "Public/NPCWorldStateAgentComponent.h" },
 	};
 	static constexpr UECodeGen_Private::FMetaDataPairParam NewProp_DefaultDropAnimation_MetaData[] = {
@@ -1081,9 +1194,19 @@ struct Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics
 	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupApproachStallSeconds;
 	static const UECodeGen_Private::FIntPropertyParams NewProp_PickupApproachCandidateCount;
 	static const UECodeGen_Private::FIntPropertyParams NewProp_MaximumPickupApproachRepathFailures;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupApproachGroundFollowInterpSpeed;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupApproachMaximumGroundStepUp;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupApproachMaximumGroundStepDown;
 	static const UECodeGen_Private::FFloatPropertyParams NewProp_PickupFacingYawOffsetDegrees;
 	static const UECodeGen_Private::FFloatPropertyParams NewProp_ThrowImpulse;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_DefaultPickupAnimation;
+	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_GroundPickupAnimation;
+	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_TablePickupAnimation;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_TablePickupMinimumHeight;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_GroundPickupAnimationPlayRate;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_TablePickupAnimationPlayRate;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_GroundPickupEffectTriggerNormalizedTime;
+	static const UECodeGen_Private::FFloatPropertyParams NewProp_TablePickupEffectTriggerNormalizedTime;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_DefaultDropAnimation;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_DefaultHeldIdleAnimation;
 	static const UECodeGen_Private::FSoftObjectPropertyParams NewProp_DefaultHeldWalkAnimation;
@@ -1108,6 +1231,7 @@ struct Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics
 		{ .NameUTF8 = UTF8TEXT("GetCurrentHeldIdleAnimation"), .Pointer = &UNPCWorldStateAgentComponent::execGetCurrentHeldIdleAnimation },
 		{ .NameUTF8 = UTF8TEXT("GetHeldActor"), .Pointer = &UNPCWorldStateAgentComponent::execGetHeldActor },
 		{ .NameUTF8 = UTF8TEXT("GetHeldWalkAnimation"), .Pointer = &UNPCWorldStateAgentComponent::execGetHeldWalkAnimation },
+		{ .NameUTF8 = UTF8TEXT("GetPickupAnimationForTarget"), .Pointer = &UNPCWorldStateAgentComponent::execGetPickupAnimationForTarget },
 		{ .NameUTF8 = UTF8TEXT("GetVisibleWorldObjects"), .Pointer = &UNPCWorldStateAgentComponent::execGetVisibleWorldObjects },
 		{ .NameUTF8 = UTF8TEXT("GetWorldStateJson"), .Pointer = &UNPCWorldStateAgentComponent::execGetWorldStateJson },
 		{ .NameUTF8 = UTF8TEXT("GetWorldStateText"), .Pointer = &UNPCWorldStateAgentComponent::execGetWorldStateText },
@@ -1124,6 +1248,7 @@ struct Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetCurrentHeldIdleAnimation, "GetCurrentHeldIdleAnimation" }, // 788753097
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldActor, "GetHeldActor" }, // 3721205780
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetHeldWalkAnimation, "GetHeldWalkAnimation" }, // 2915049033
+		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetPickupAnimationForTarget, "GetPickupAnimationForTarget" }, // 1886588787
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetVisibleWorldObjects, "GetVisibleWorldObjects" }, // 3110884374
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetWorldStateJson, "GetWorldStateJson" }, // 2543448436
 		{ &Z_Construct_UFunction_UNPCWorldStateAgentComponent_GetWorldStateText, "GetWorldStateText" }, // 3277560808
@@ -1167,9 +1292,19 @@ const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateA
 const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachStallSeconds = { "PickupApproachStallSeconds", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachStallSeconds), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachStallSeconds_MetaData), NewProp_PickupApproachStallSeconds_MetaData) };
 const UECodeGen_Private::FIntPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachCandidateCount = { "PickupApproachCandidateCount", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Int, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachCandidateCount), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachCandidateCount_MetaData), NewProp_PickupApproachCandidateCount_MetaData) };
 const UECodeGen_Private::FIntPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_MaximumPickupApproachRepathFailures = { "MaximumPickupApproachRepathFailures", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Int, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, MaximumPickupApproachRepathFailures), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_MaximumPickupApproachRepathFailures_MetaData), NewProp_MaximumPickupApproachRepathFailures_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachGroundFollowInterpSpeed = { "PickupApproachGroundFollowInterpSpeed", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachGroundFollowInterpSpeed), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachGroundFollowInterpSpeed_MetaData), NewProp_PickupApproachGroundFollowInterpSpeed_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachMaximumGroundStepUp = { "PickupApproachMaximumGroundStepUp", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachMaximumGroundStepUp), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachMaximumGroundStepUp_MetaData), NewProp_PickupApproachMaximumGroundStepUp_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachMaximumGroundStepDown = { "PickupApproachMaximumGroundStepDown", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupApproachMaximumGroundStepDown), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupApproachMaximumGroundStepDown_MetaData), NewProp_PickupApproachMaximumGroundStepDown_MetaData) };
 const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupFacingYawOffsetDegrees = { "PickupFacingYawOffsetDegrees", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, PickupFacingYawOffsetDegrees), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_PickupFacingYawOffsetDegrees_MetaData), NewProp_PickupFacingYawOffsetDegrees_MetaData) };
 const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_ThrowImpulse = { "ThrowImpulse", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, ThrowImpulse), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_ThrowImpulse_MetaData), NewProp_ThrowImpulse_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultPickupAnimation = { "DefaultPickupAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, DefaultPickupAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_DefaultPickupAnimation_MetaData), NewProp_DefaultPickupAnimation_MetaData) };
+const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_GroundPickupAnimation = { "GroundPickupAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, GroundPickupAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_GroundPickupAnimation_MetaData), NewProp_GroundPickupAnimation_MetaData) };
+const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_TablePickupAnimation = { "TablePickupAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, TablePickupAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_TablePickupAnimation_MetaData), NewProp_TablePickupAnimation_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_TablePickupMinimumHeight = { "TablePickupMinimumHeight", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, TablePickupMinimumHeight), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_TablePickupMinimumHeight_MetaData), NewProp_TablePickupMinimumHeight_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_GroundPickupAnimationPlayRate = { "GroundPickupAnimationPlayRate", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, GroundPickupAnimationPlayRate), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_GroundPickupAnimationPlayRate_MetaData), NewProp_GroundPickupAnimationPlayRate_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_TablePickupAnimationPlayRate = { "TablePickupAnimationPlayRate", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, TablePickupAnimationPlayRate), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_TablePickupAnimationPlayRate_MetaData), NewProp_TablePickupAnimationPlayRate_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_GroundPickupEffectTriggerNormalizedTime = { "GroundPickupEffectTriggerNormalizedTime", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, GroundPickupEffectTriggerNormalizedTime), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_GroundPickupEffectTriggerNormalizedTime_MetaData), NewProp_GroundPickupEffectTriggerNormalizedTime_MetaData) };
+const UECodeGen_Private::FFloatPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_TablePickupEffectTriggerNormalizedTime = { "TablePickupEffectTriggerNormalizedTime", nullptr, (EPropertyFlags)0x0010000000000005, UECodeGen_Private::EPropertyGenFlags::Float, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, TablePickupEffectTriggerNormalizedTime), METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_TablePickupEffectTriggerNormalizedTime_MetaData), NewProp_TablePickupEffectTriggerNormalizedTime_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultDropAnimation = { "DefaultDropAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, DefaultDropAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_DefaultDropAnimation_MetaData), NewProp_DefaultDropAnimation_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultHeldIdleAnimation = { "DefaultHeldIdleAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, DefaultHeldIdleAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_DefaultHeldIdleAnimation_MetaData), NewProp_DefaultHeldIdleAnimation_MetaData) };
 const UECodeGen_Private::FSoftObjectPropertyParams Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultHeldWalkAnimation = { "DefaultHeldWalkAnimation", nullptr, (EPropertyFlags)0x0014000000000005, UECodeGen_Private::EPropertyGenFlags::SoftObject, RF_Public|RF_Transient|RF_MarkAsNative, nullptr, nullptr, 1, STRUCT_OFFSET(UNPCWorldStateAgentComponent, DefaultHeldWalkAnimation), Z_Construct_UClass_UAnimSequence_NoRegister, METADATA_PARAMS(UE_ARRAY_COUNT(NewProp_DefaultHeldWalkAnimation_MetaData), NewProp_DefaultHeldWalkAnimation_MetaData) };
@@ -1208,9 +1343,19 @@ const UECodeGen_Private::FPropertyParamsBase* const Z_Construct_UClass_UNPCWorld
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachStallSeconds,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachCandidateCount,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_MaximumPickupApproachRepathFailures,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachGroundFollowInterpSpeed,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachMaximumGroundStepUp,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupApproachMaximumGroundStepDown,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_PickupFacingYawOffsetDegrees,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_ThrowImpulse,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultPickupAnimation,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_GroundPickupAnimation,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_TablePickupAnimation,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_TablePickupMinimumHeight,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_GroundPickupAnimationPlayRate,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_TablePickupAnimationPlayRate,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_GroundPickupEffectTriggerNormalizedTime,
+	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_TablePickupEffectTriggerNormalizedTime,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultDropAnimation,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultHeldIdleAnimation,
 	(const UECodeGen_Private::FPropertyParamsBase*)&Z_Construct_UClass_UNPCWorldStateAgentComponent_Statics::NewProp_DefaultHeldWalkAnimation,
@@ -1270,10 +1415,10 @@ UNPCWorldStateAgentComponent::~UNPCWorldStateAgentComponent() {}
 struct Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_Statics
 {
 	static constexpr FClassRegisterCompiledInInfo ClassInfo[] = {
-		{ Z_Construct_UClass_UNPCWorldStateAgentComponent, UNPCWorldStateAgentComponent::StaticClass, TEXT("UNPCWorldStateAgentComponent"), &Z_Registration_Info_UClass_UNPCWorldStateAgentComponent, CONSTRUCT_RELOAD_VERSION_INFO(FClassReloadVersionInfo, sizeof(UNPCWorldStateAgentComponent), 1524428949U) },
+		{ Z_Construct_UClass_UNPCWorldStateAgentComponent, UNPCWorldStateAgentComponent::StaticClass, TEXT("UNPCWorldStateAgentComponent"), &Z_Registration_Info_UClass_UNPCWorldStateAgentComponent, CONSTRUCT_RELOAD_VERSION_INFO(FClassReloadVersionInfo, sizeof(UNPCWorldStateAgentComponent), 2733448563U) },
 	};
 }; // Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_Statics 
-static FRegisterCompiledInInfo Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_1106202920{
+static FRegisterCompiledInInfo Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_583306579{
 	TEXT("/Script/NaturalNPCWorldState"),
 	Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_Statics::ClassInfo, UE_ARRAY_COUNT(Z_CompiledInDeferFile_FID_UE_Projects_NaturalNPC_Plugins_NaturalNPCWorldState_Source_NaturalNPCWorldState_Public_NPCWorldStateAgentComponent_h__Script_NaturalNPCWorldState_Statics::ClassInfo),
 	nullptr, 0,

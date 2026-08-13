@@ -25,7 +25,7 @@ static_assert(!UE_WITH_CONSTINIT_UOBJECT, "This generated code can only be compi
 			SingletonFuncArray,
 			UE_ARRAY_COUNT(SingletonFuncArray),
 			PKG_CompiledIn | 0x00000000,
-			0x01DD7A2E,
+			0x364A39C9,
 			0x4938EB64,
 			METADATA_PARAMS(0, nullptr)
 		};
@@ -33,5 +33,5 @@ static_assert(!UE_WITH_CONSTINIT_UOBJECT, "This generated code can only be compi
 	}
 	return Z_Registration_Info_UPackage__Script_NaturalNPCWorldState.OuterSingleton;
 }
-static FRegisterCompiledInInfo Z_CompiledInDeferPackage_UPackage__Script_NaturalNPCWorldState(Z_Construct_UPackage__Script_NaturalNPCWorldState, TEXT("/Script/NaturalNPCWorldState"), Z_Registration_Info_UPackage__Script_NaturalNPCWorldState, CONSTRUCT_RELOAD_VERSION_INFO(FPackageReloadVersionInfo, 0x01DD7A2E, 0x4938EB64));
+static FRegisterCompiledInInfo Z_CompiledInDeferPackage_UPackage__Script_NaturalNPCWorldState(Z_Construct_UPackage__Script_NaturalNPCWorldState, TEXT("/Script/NaturalNPCWorldState"), Z_Registration_Info_UPackage__Script_NaturalNPCWorldState, CONSTRUCT_RELOAD_VERSION_INFO(FPackageReloadVersionInfo, 0x364A39C9, 0x4938EB64));
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

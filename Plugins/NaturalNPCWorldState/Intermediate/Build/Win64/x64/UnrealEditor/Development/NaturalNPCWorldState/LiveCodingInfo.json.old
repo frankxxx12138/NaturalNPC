@@ -12,10 +12,10 @@
 			"NPCWorldStateTypes.gen.cpp.obj",
 			"PerModuleInline.gen.cpp.obj",
 			"NaturalNPCWorldStateModule.cpp.obj",
+			"NPCAdaptivePickupAnimInstance.cpp.obj",
 			"NPCWorldStateBlueprintLibrary.cpp.obj",
 			"NPCWorldStateObjectComponent.cpp.obj",
 			"NPCWorldStateSubsystem.cpp.obj",
-			"NPCAdaptivePickupAnimInstance.cpp.obj",
 			"NPCWorldStateAgentComponent.cpp.obj",
 			"NPCAdaptivePickupAnimInstanceTests.cpp.obj"
 		]

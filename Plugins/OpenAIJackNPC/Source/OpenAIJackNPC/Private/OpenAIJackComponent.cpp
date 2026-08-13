@@ -16,6 +16,7 @@
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
+#include "InputAction.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Sound/SoundWaveProcedural.h"
@@ -26,6 +27,7 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/OverlapResult.h"
 #include "EngineUtils.h"
+#include "EnhancedPlayerInput.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -55,6 +57,62 @@ namespace
 {
     TMap<TWeakObjectPtr<AActor>, TWeakObjectPtr<UOpenAIJackComponent>>
         GNaturalNPCSeatReservations;
+    TWeakObjectPtr<UOpenAIJackComponent> GRealtimePushToTalkOwner;
+
+    bool TryParseLLMProvider(
+        const FString& Value,
+        EJackLLMProvider& OutProvider
+    )
+    {
+        const FString Normalized = Value.TrimStartAndEnd();
+        if (Normalized.Equals(TEXT("openai"), ESearchCase::IgnoreCase) ||
+            Normalized.Equals(TEXT("api"), ESearchCase::IgnoreCase) ||
+            Normalized.Equals(TEXT("cloud"), ESearchCase::IgnoreCase))
+        {
+            OutProvider = EJackLLMProvider::OpenAIAPI;
+            return true;
+        }
+        if (Normalized.Equals(TEXT("ollama"), ESearchCase::IgnoreCase) ||
+            Normalized.Equals(TEXT("local"), ESearchCase::IgnoreCase))
+        {
+            OutProvider = EJackLLMProvider::OllamaLocal;
+            return true;
+        }
+        return false;
+    }
+
+    bool IsRealtimePushToTalkOwner(const UOpenAIJackComponent* Component)
+    {
+        return IsValid(Component) &&
+            GRealtimePushToTalkOwner.Get() == Component;
+    }
+
+    UOpenAIJackComponent* GetRealtimePushToTalkOwner()
+    {
+        return GRealtimePushToTalkOwner.Get();
+    }
+
+    bool TryClaimRealtimePushToTalk(UOpenAIJackComponent* Component)
+    {
+        if (!IsValid(Component))
+        {
+            return false;
+        }
+        if (!GRealtimePushToTalkOwner.IsValid())
+        {
+            GRealtimePushToTalkOwner = Component;
+            return true;
+        }
+        return IsRealtimePushToTalkOwner(Component);
+    }
+
+    void ReleaseRealtimePushToTalk(UOpenAIJackComponent* Component)
+    {
+        if (IsRealtimePushToTalkOwner(Component))
+        {
+            GRealtimePushToTalkOwner.Reset();
+        }
+    }
 
     constexpr float SitIdlePelvisX = 2.996f;
     constexpr float SitIdlePelvisY = 7.531f;
@@ -457,6 +515,94 @@ namespace
         return Content.TrimStartAndEnd();
     }
 
+    FString ExtractOpenAIChatReply(const TSharedPtr<FJsonObject>& Root)
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Choices = nullptr;
+        if (!Root->TryGetArrayField(TEXT("choices"), Choices) ||
+            Choices->IsEmpty())
+        {
+            return FString();
+        }
+
+        const TSharedPtr<FJsonObject>* Choice = nullptr;
+        if (!(*Choices)[0]->TryGetObject(Choice) || !Choice->IsValid())
+        {
+            return FString();
+        }
+
+        const TSharedPtr<FJsonObject>* Message = nullptr;
+        if (!(*Choice)->TryGetObjectField(TEXT("message"), Message) ||
+            !Message->IsValid())
+        {
+            return FString();
+        }
+
+        FString Content;
+        (*Message)->TryGetStringField(TEXT("content"), Content);
+        return Content.TrimStartAndEnd();
+    }
+
+    FString ExtractOpenAIChatDelta(const TSharedPtr<FJsonObject>& Root)
+    {
+        const TArray<TSharedPtr<FJsonValue>>* Choices = nullptr;
+        if (!Root->TryGetArrayField(TEXT("choices"), Choices) ||
+            Choices->IsEmpty())
+        {
+            return FString();
+        }
+
+        const TSharedPtr<FJsonObject>* Choice = nullptr;
+        if (!(*Choices)[0]->TryGetObject(Choice) || !Choice->IsValid())
+        {
+            return FString();
+        }
+
+        const TSharedPtr<FJsonObject>* Delta = nullptr;
+        if (!(*Choice)->TryGetObjectField(TEXT("delta"), Delta) ||
+            !Delta->IsValid())
+        {
+            return FString();
+        }
+
+        FString Content;
+        (*Delta)->TryGetStringField(TEXT("content"), Content);
+        return Content;
+    }
+
+    void ExtractOpenAIUsage(
+        const TSharedPtr<FJsonObject>& Root,
+        double& OutPromptTokenCount,
+        double& OutOutputTokenCount
+    )
+    {
+        const TSharedPtr<FJsonObject>* Usage = nullptr;
+        if (!Root->TryGetObjectField(TEXT("usage"), Usage) ||
+            !Usage->IsValid())
+        {
+            return;
+        }
+
+        (*Usage)->TryGetNumberField(
+            TEXT("prompt_tokens"),
+            OutPromptTokenCount
+        );
+        (*Usage)->TryGetNumberField(
+            TEXT("completion_tokens"),
+            OutOutputTokenCount
+        );
+    }
+
+    FString ExtractSseData(const FString& Line)
+    {
+        FString Payload = Line.TrimStartAndEnd();
+        if (Payload.StartsWith(TEXT("data:")))
+        {
+            Payload.RightChopInline(5, EAllowShrinking::No);
+            Payload.TrimStartAndEndInline();
+        }
+        return Payload;
+    }
+
     bool ExtractEmbedding(
         const TSharedPtr<FJsonObject>& Root,
         TArray<float>& OutEmbedding
@@ -568,6 +714,35 @@ namespace
         for (const TCHAR* Phrase : Phrases)
         {
             if (Text.Contains(Phrase, ESearchCase::IgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool ContainsAnyWholeWord(
+        const FString& Text,
+        std::initializer_list<const TCHAR*> Words
+    )
+    {
+        FString Normalized = TEXT(" ") + Text.ToLower() + TEXT(" ");
+        Normalized = Normalized
+            .Replace(TEXT(","), TEXT(" "))
+            .Replace(TEXT("."), TEXT(" "))
+            .Replace(TEXT("?"), TEXT(" "))
+            .Replace(TEXT("!"), TEXT(" "))
+            .Replace(TEXT(":"), TEXT(" "))
+            .Replace(TEXT(";"), TEXT(" "));
+        while (Normalized.Contains(TEXT("  ")))
+        {
+            Normalized.ReplaceInline(TEXT("  "), TEXT(" "));
+        }
+
+        for (const TCHAR* Word : Words)
+        {
+            if (Normalized.Contains(
+                    TEXT(" ") + FString(Word).ToLower() + TEXT(" ")))
             {
                 return true;
             }
@@ -716,6 +891,9 @@ namespace
 UOpenAIJackComponent::UOpenAIJackComponent()
 {
     PrimaryComponentTick.bCanEverTick = true;
+    VRPushToTalkAction = TSoftObjectPtr<UInputAction>(FSoftObjectPath(
+        TEXT("/Game/XRFramework/Input/Actions/IA_PushToTalk.IA_PushToTalk")
+    ));
 }
 
 FName UOpenAIJackComponent::GetResolvedNPCID() const
@@ -741,6 +919,50 @@ FString UOpenAIJackComponent::GetEffectiveModelKeepAlive() const
         ? ModelIdleKeepAlive.TrimStartAndEnd()
         : KeepAlive.TrimStartAndEnd();
     return ConfiguredValue.IsEmpty() ? TEXT("60s") : ConfiguredValue;
+}
+
+EJackLLMProvider UOpenAIJackComponent::GetEffectiveLLMProvider() const
+{
+    FString Override;
+    if (FParse::Value(
+            FCommandLine::Get(),
+            TEXT("NaturalNPCLLMProvider="),
+            Override))
+    {
+        EJackLLMProvider ParsedProvider;
+        if (TryParseLLMProvider(Override, ParsedProvider))
+        {
+            return ParsedProvider;
+        }
+    }
+
+    Override = FPlatformMisc::GetEnvironmentVariable(
+        TEXT("NATURALNPC_LLM_PROVIDER")
+    );
+    EJackLLMProvider ParsedProvider;
+    return TryParseLLMProvider(Override, ParsedProvider)
+        ? ParsedProvider
+        : LLMProvider;
+}
+
+void UOpenAIJackComponent::SetLLMProvider(EJackLLMProvider Provider)
+{
+    LLMProvider = Provider;
+    UE_LOG(
+        LogTemp,
+        Display,
+        TEXT("JACK_LLM_BACKEND provider=%s actor=%s"),
+        Provider == EJackLLMProvider::OpenAIAPI
+            ? TEXT("openai")
+            : TEXT("ollama"),
+        *GetNameSafe(GetOwner())
+    );
+
+    if (GetEffectiveLLMProvider() == EJackLLMProvider::OpenAIAPI &&
+        bUnloadLocalModelsWhenUsingOpenAI)
+    {
+        UnloadLocalModelsFromMemory();
+    }
 }
 
 void UOpenAIJackComponent::BeginPlay()
@@ -775,7 +997,14 @@ void UOpenAIJackComponent::BeginPlay()
     }
 
     InitializeSessionMemory();
-    if (bWarmEmbeddingModelOnBeginPlay)
+    const bool bUseOpenAI =
+        GetEffectiveLLMProvider() == EJackLLMProvider::OpenAIAPI;
+    if (bUseOpenAI && bUnloadLocalModelsWhenUsingOpenAI)
+    {
+        UnloadLocalModelsFromMemory();
+    }
+    if (bWarmEmbeddingModelOnBeginPlay &&
+        (!bUseOpenAI || bUseLocalMemoryEmbeddingsInOpenAIMode))
     {
         WarmEmbeddingModel();
     }
@@ -804,8 +1033,12 @@ void UOpenAIJackComponent::EndPlay(
     }
 
     ++HttpSTTRequestGeneration;
+    ++RealtimeVoiceRequestGeneration;
     bHttpSTTListening = false;
     bHttpSTTRequestInFlight = false;
+    bRealtimeVoiceListening = false;
+    bRealtimeVoiceRequestInFlight = false;
+    ReleaseRealtimePushToTalk(this);
     CleanupWindowsSTT();
     PendingPostWorldActionCommand.Reset();
     CancelSittingImmediately();
@@ -860,6 +1093,204 @@ FString UOpenAIJackComponent::GetApiKey() const
     return FPlatformMisc::GetEnvironmentVariable(TEXT("OPENAI_API_KEY"));
 }
 
+FString UOpenAIJackComponent::GetLLMApiKey() const
+{
+    const FString EnvironmentVariable =
+        OpenAIApiKeyEnvironmentVariable.TrimStartAndEnd();
+    return EnvironmentVariable.IsEmpty()
+        ? FString()
+        : FPlatformMisc::GetEnvironmentVariable(*EnvironmentVariable);
+}
+
+FString UOpenAIJackComponent::GetResolvedRealtimeVoice() const
+{
+    const FString ConfiguredVoice =
+        OpenAIRealtimeVoice.TrimStartAndEnd();
+    if (!ConfiguredVoice.IsEmpty())
+    {
+        return ConfiguredVoice;
+    }
+
+    return GetResolvedNPCID().ToString().Contains(
+        TEXT("Jack"),
+        ESearchCase::IgnoreCase
+    )
+        ? TEXT("cedar")
+        : TEXT("marin");
+}
+
+FString UOpenAIJackComponent::GetResolvedRealtimeInstructions() const
+{
+    FString Instructions = CharacterInstructions;
+    if (GetResolvedNPCID().ToString().Contains(
+            TEXT("Jack"),
+            ESearchCase::IgnoreCase))
+    {
+        Instructions +=
+            TEXT(" Speak with a warm, mature, clearly masculine bartender ")
+            TEXT("delivery. Keep it natural and unforced.");
+    }
+    const FString SessionContext = BuildSessionConversationContext(true);
+    if (!SessionContext.IsEmpty())
+    {
+        Instructions += TEXT("\n\n") + SessionContext;
+    }
+    return Instructions;
+}
+
+float UOpenAIJackComponent::GetEffectiveConversationListeningRadius() const
+{
+    const float ListeningRadius = FMath::Max(
+        0.0f,
+        AutonomousListeningRadius
+    );
+    if (!bEnableNearbyConversationContext)
+    {
+        return ListeningRadius;
+    }
+    return FMath::Min(
+        ListeningRadius,
+        FMath::Max(0.0f, NearbyConversationContextRadius)
+    );
+}
+
+FString UOpenAIJackComponent::BuildSessionConversationContext(
+    bool bIncludeOwnPrimaryTurns
+) const
+{
+    if (SessionConversationExchanges.IsEmpty())
+    {
+        return FString();
+    }
+
+    const FName ThisNPCID = GetResolvedNPCID();
+    const int32 MaximumContextTurns = FMath::Max(1, MaxConversationTurns);
+    const int32 FirstIndex = FMath::Max(
+        0,
+        SessionConversationExchanges.Num() - MaximumContextTurns
+    );
+    FString Context = TEXT(
+        "Session conversation memory (oldest to newest). Lines spoken by "
+        "another NPC are things you heard, not things you said. Preserve "
+        "speaker ownership and use this memory naturally:\n"
+    );
+    int32 IncludedExchangeCount = 0;
+
+    for (int32 Index = FirstIndex;
+         Index < SessionConversationExchanges.Num();
+         ++Index)
+    {
+        const FSessionConversationExchange& Exchange =
+            SessionConversationExchanges[Index];
+        const bool bOwnPrimaryTurn = Exchange.PrimaryNPCID == ThisNPCID;
+        bool bIncludedAnyLine = false;
+
+        if (bIncludeOwnPrimaryTurns || !bOwnPrimaryTurn)
+        {
+            Context += FString::Printf(
+                TEXT("Player to %s: %s\n%s: %s\n"),
+                *Exchange.PrimaryNPCID.ToString(),
+                *Exchange.PlayerText,
+                *Exchange.PrimaryNPCID.ToString(),
+                *Exchange.PrimaryReply
+            );
+            bIncludedAnyLine = true;
+        }
+        if (!Exchange.SecondaryNPCID.IsNone() &&
+            !Exchange.SecondaryReply.IsEmpty())
+        {
+            Context += FString::Printf(
+                TEXT("%s: %s\n"),
+                *Exchange.SecondaryNPCID.ToString(),
+                *Exchange.SecondaryReply
+            );
+            bIncludedAnyLine = true;
+        }
+        if (bIncludedAnyLine)
+        {
+            Context += TEXT("\n");
+            ++IncludedExchangeCount;
+        }
+    }
+
+    return IncludedExchangeCount > 0 ? Context.TrimEnd() : FString();
+}
+
+bool UOpenAIJackComponent::ShouldUseOpenAIRealtimeVoice() const
+{
+    return GetEffectiveLLMProvider() == EJackLLMProvider::OpenAIAPI &&
+        bEnableOpenAIRealtimeVoice;
+}
+
+void UOpenAIJackComponent::UnloadLocalModelsFromMemory()
+{
+    FString UnloadUrl = OllamaChatUrl.TrimStartAndEnd();
+    const int32 ApiPathIndex = UnloadUrl.Find(
+        TEXT("/api/"),
+        ESearchCase::IgnoreCase,
+        ESearchDir::FromEnd
+    );
+    if (ApiPathIndex != INDEX_NONE)
+    {
+        UnloadUrl = UnloadUrl.Left(ApiPathIndex) + TEXT("/api/generate");
+    }
+    if (UnloadUrl.IsEmpty())
+    {
+        return;
+    }
+
+    TSet<FString> ModelsToUnload;
+    if (!Model.TrimStartAndEnd().IsEmpty())
+    {
+        ModelsToUnload.Add(Model.TrimStartAndEnd());
+    }
+    if (!EmbeddingModel.TrimStartAndEnd().IsEmpty())
+    {
+        ModelsToUnload.Add(EmbeddingModel.TrimStartAndEnd());
+    }
+
+    for (const FString& ModelName : ModelsToUnload)
+    {
+        TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
+        Body->SetStringField(TEXT("model"), ModelName);
+        Body->SetNumberField(TEXT("keep_alive"), 0);
+
+        FString Json;
+        const TSharedRef<TJsonWriter<>> Writer =
+            TJsonWriterFactory<>::Create(&Json);
+        FJsonSerializer::Serialize(Body, Writer);
+
+        const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request =
+            FHttpModule::Get().CreateRequest();
+        Request->SetURL(UnloadUrl);
+        Request->SetVerb(TEXT("POST"));
+        Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+        Request->SetTimeout(5.0f);
+        Request->SetContentAsString(Json);
+        Request->OnProcessRequestComplete().BindLambda(
+            [ModelName](
+                FHttpRequestPtr,
+                FHttpResponsePtr Response,
+                bool bSucceeded
+            )
+            {
+                if (bSucceeded && Response.IsValid() &&
+                    Response->GetResponseCode() >= 200 &&
+                    Response->GetResponseCode() < 300)
+                {
+                    UE_LOG(
+                        LogTemp,
+                        Display,
+                        TEXT("JACK_LLM_BACKEND unloaded_local_model=%s"),
+                        *ModelName
+                    );
+                }
+            }
+        );
+        Request->ProcessRequest();
+    }
+}
+
 void UOpenAIJackComponent::SendPlayerText(const FString& PlayerText)
 {
     const FString TrimmedPlayerText = PlayerText.TrimStartAndEnd();
@@ -895,76 +1326,12 @@ void UOpenAIJackComponent::SendPlayerText(const FString& PlayerText)
         }
     }
 
-    EnsureWorldStateAgent();
-    FString WorldActionReply;
-    FString RemainingCommand;
-    if (bEnableWorldStateNaturalLanguageActions &&
-        IsValid(WorldStateAgent) &&
-        WorldStateAgent->TryExecuteNaturalLanguageActionDetailed(
-            TrimmedPlayerText,
-            WorldActionReply,
-            RemainingCommand
-        ))
-    {
-        if (!RemainingCommand.IsEmpty())
-        {
-            if (WorldStateAgent->
-                    IsNaturalLanguageActionSequenceInProgress())
-            {
-                PendingPostWorldActionCommand = RemainingCommand;
-                UE_LOG(
-                    LogTemp,
-                    Display,
-                    TEXT("JACK_WORLD_ACTION deferred_command text=%s"),
-                    *PendingPostWorldActionCommand
-                );
-            }
-            else if (WorldStateAgent->
-                WasLastNaturalLanguageActionSequenceSuccessful())
-            {
-                FString RemainingReply;
-                if (TryHandleNaturalLanguageAction(
-                        RemainingCommand,
-                        RemainingReply) &&
-                    !bBusy)
-                {
-                    SpeakLocalActionReply(
-                        TrimmedPlayerText,
-                        RemainingReply
-                    );
-                }
-            }
-        }
-        UE_LOG(
-            LogTemp,
-            Display,
-            TEXT("JACK_WORLD_ACTION handled text=%s reply=%s"),
-            *TrimmedPlayerText,
-            *WorldActionReply
-        );
-        if (!bBusy)
-        {
-            SpeakLocalActionReply(TrimmedPlayerText, WorldActionReply);
-        }
-        return;
-    }
-
     FString ActionReply;
-    if (TryHandleNaturalLanguageAction(TrimmedPlayerText, ActionReply))
+    if (TryExecutePlayerAction(
+            TrimmedPlayerText,
+            ActionReply,
+            true))
     {
-        if (!bBusy)
-        {
-            SpeakLocalActionReply(TrimmedPlayerText, ActionReply);
-        }
-        else
-        {
-            UE_LOG(
-                LogTemp,
-                Display,
-                TEXT("JACK_ACTION handled_while_busy text=%s"),
-                *TrimmedPlayerText
-            );
-        }
         return;
     }
 
@@ -993,7 +1360,110 @@ void UOpenAIJackComponent::SendPlayerText(const FString& PlayerText)
         ScheduleInstantAcknowledgement();
     }
 
-    RequestRelevantMemory(TrimmedPlayerText);
+    if (GetEffectiveLLMProvider() == EJackLLMProvider::OpenAIAPI &&
+        !bUseLocalMemoryEmbeddingsInOpenAIMode)
+    {
+        RequestResponse(TrimmedPlayerText, {});
+    }
+    else
+    {
+        RequestRelevantMemory(TrimmedPlayerText);
+    }
+}
+
+bool UOpenAIJackComponent::TryExecuteRecognizedPlayerAction(
+    const FString& PlayerText,
+    FString& OutReply
+)
+{
+    return TryExecutePlayerAction(PlayerText, OutReply, false);
+}
+
+bool UOpenAIJackComponent::TryExecutePlayerAction(
+    const FString& PlayerText,
+    FString& OutReply,
+    const bool bSpeakReply
+)
+{
+    const FString TrimmedPlayerText = PlayerText.TrimStartAndEnd();
+    OutReply.Reset();
+    if (TrimmedPlayerText.IsEmpty())
+    {
+        return false;
+    }
+
+    EnsureWorldStateAgent();
+    FString RemainingCommand;
+    if (bEnableWorldStateNaturalLanguageActions &&
+        IsValid(WorldStateAgent) &&
+        WorldStateAgent->TryExecuteNaturalLanguageActionDetailed(
+            TrimmedPlayerText,
+            OutReply,
+            RemainingCommand
+        ))
+    {
+        if (!RemainingCommand.IsEmpty())
+        {
+            if (WorldStateAgent->
+                    IsNaturalLanguageActionSequenceInProgress())
+            {
+                PendingPostWorldActionCommand = RemainingCommand;
+                UE_LOG(
+                    LogTemp,
+                    Display,
+                    TEXT("JACK_WORLD_ACTION deferred_command text=%s"),
+                    *PendingPostWorldActionCommand
+                );
+            }
+            else if (WorldStateAgent->
+                WasLastNaturalLanguageActionSequenceSuccessful())
+            {
+                FString RemainingReply;
+                if (TryHandleNaturalLanguageAction(
+                        RemainingCommand,
+                        RemainingReply) &&
+                    bSpeakReply && !bBusy)
+                {
+                    SpeakLocalActionReply(
+                        TrimmedPlayerText,
+                        RemainingReply
+                    );
+                }
+            }
+        }
+        UE_LOG(
+            LogTemp,
+            Display,
+            TEXT("JACK_WORLD_ACTION handled text=%s reply=%s"),
+            *TrimmedPlayerText,
+            *OutReply
+        );
+        if (bSpeakReply && !bBusy)
+        {
+            SpeakLocalActionReply(TrimmedPlayerText, OutReply);
+        }
+        return true;
+    }
+
+    if (!TryHandleNaturalLanguageAction(TrimmedPlayerText, OutReply))
+    {
+        return false;
+    }
+
+    if (bSpeakReply && !bBusy)
+    {
+        SpeakLocalActionReply(TrimmedPlayerText, OutReply);
+    }
+    else if (bSpeakReply)
+    {
+        UE_LOG(
+            LogTemp,
+            Display,
+            TEXT("JACK_ACTION handled_while_busy text=%s"),
+            *TrimmedPlayerText
+        );
+    }
+    return true;
 }
 
 void UOpenAIJackComponent::TryRunPendingPostWorldActionCommand()
@@ -1051,7 +1521,11 @@ bool UOpenAIJackComponent::SpeakGovernedText(
     bBusy = true;
     PublishReplyText(TrimmedReply);
 
-    if (bEnableQueuedSpeech && bEnableHttpTTS)
+    if (ShouldUseOpenAIRealtimeVoice())
+    {
+        RequestRealtimeSpeech(TrimmedReply);
+    }
+    else if (bEnableQueuedSpeech && bEnableHttpTTS)
     {
         bFinalSpeechQueuedForCurrentTurn = true;
         for (const FString& Segment : SplitReplyIntoSpeechSegments(
@@ -1300,6 +1774,7 @@ void UOpenAIJackComponent::ClearConversation()
     ConversationHistory.Reset();
     PersistentHistory.Reset();
     MemoryTurns.Reset();
+    SessionConversationExchanges.Reset();
 
     if (bEnableSessionMemoryFile)
     {
@@ -1315,6 +1790,12 @@ void UOpenAIJackComponent::StartFollowingPlayer(bool bRun)
         PendingAfterStandAction = bRun
             ? EPendingAfterStandAction::FollowRun
             : EPendingAfterStandAction::FollowWalk;
+        UE_LOG(
+            LogTemp,
+            Display,
+            TEXT("JACK_ACTION queued_after_stand action=%s"),
+            bRun ? TEXT("follow_run") : TEXT("follow_walk")
+        );
         BeginStandUpTransition();
         return;
     }
@@ -1801,7 +2282,8 @@ bool UOpenAIJackComponent::FindBestAvailableSeat(
                 if (IsActionNavigationSegmentBlocked(
                         Path->PathPoints[PointIndex - 1],
                         Path->PathPoints[PointIndex],
-                        SegmentHit))
+                        SegmentHit,
+                        CandidateSeat))
                 {
                     bPhysicalPathBlocked = true;
                     BlockingActor = SegmentHit.GetActor();
@@ -1820,7 +2302,8 @@ bool UOpenAIJackComponent::FindBestAvailableSeat(
                     OwnerLocation,
                     ProjectedApproach.Location,
                     CollisionAwarePath,
-                    ExpandedNodes
+                    ExpandedNodes,
+                    CandidateSeat
                 );
             }
         }
@@ -2144,6 +2627,13 @@ void UOpenAIJackComponent::RunPendingAfterStandAction()
     const EPendingAfterStandAction PendingAction = PendingAfterStandAction;
     PendingAfterStandAction = EPendingAfterStandAction::None;
 
+    UE_LOG(
+        LogTemp,
+        Display,
+        TEXT("JACK_ACTION run_after_stand action=%d"),
+        static_cast<int32>(PendingAction)
+    );
+
     switch (PendingAction)
     {
     case EPendingAfterStandAction::FollowWalk:
@@ -2222,11 +2712,18 @@ bool UOpenAIJackComponent::TryHandleNaturalLanguageAction(
 
     const bool bStandUpIntent = ContainsAnyPhrase(LowerText, {
         TEXT("stand up"), TEXT("get up"), TEXT("rise to your feet"),
-        TEXT("get back on your feet")}) ||
+        TEXT("get back on your feet"), TEXT("get on your feet")}) ||
+        ContainsAnyWholeWord(LowerText, {
+            TEXT("stand"), TEXT("standa"), TEXT("stando")}) ||
         ContainsAnyPhrase(PlayerText, {
             TEXT("\u7ad9\u8d77\u6765"), TEXT("\u8d77\u8eab"),
             TEXT("\u8d77\u6765")});
-    if (bStandUpIntent)
+    const bool bMovementAfterStandIntent = ContainsAnyPhrase(LowerText, {
+        TEXT("follow me"), TEXT("come with me"),
+        TEXT("come to me"), TEXT("come here"),
+        TEXT("come over here"), TEXT("walk to me"),
+        TEXT("in front of me"), TEXT("infront of me")});
+    if (bStandUpIntent && !bMovementAfterStandIntent)
     {
         if (bIsSitting || bSitDownInProgress || bStandUpInProgress)
         {
@@ -2656,7 +3153,8 @@ void UOpenAIJackComponent::ClearActionNavigationPath()
 }
 
 bool UOpenAIJackComponent::IsActionNavigationLocationBlocked(
-    const FVector& NavigationLocation
+    const FVector& NavigationLocation,
+    const AActor* AdditionalIgnoredActor
 ) const
 {
     UWorld* World = GetWorld();
@@ -2694,6 +3192,14 @@ bool UOpenAIJackComponent::IsActionNavigationLocationBlocked(
     {
         QueryParams.AddIgnoredActor(WorldStateAgent->GetHeldActor());
     }
+    if (ReservedSeatActor.IsValid())
+    {
+        QueryParams.AddIgnoredActor(ReservedSeatActor.Get());
+    }
+    if (IsValid(AdditionalIgnoredActor))
+    {
+        QueryParams.AddIgnoredActor(AdditionalIgnoredActor);
+    }
 
     TArray<FOverlapResult> Overlaps;
     if (!World->OverlapMultiByObjectType(
@@ -2719,7 +3225,8 @@ bool UOpenAIJackComponent::IsActionNavigationLocationBlocked(
 bool UOpenAIJackComponent::IsActionNavigationSegmentBlocked(
     const FVector& StartNavigationLocation,
     const FVector& EndNavigationLocation,
-    FHitResult& OutHit
+    FHitResult& OutHit,
+    const AActor* AdditionalIgnoredActor
 ) const
 {
     UWorld* World = GetWorld();
@@ -2739,10 +3246,23 @@ bool UOpenAIJackComponent::IsActionNavigationSegmentBlocked(
         Radius + 1.0f,
         ActionCollisionHalfHeight
     );
-    const FVector CapsuleStart = StartNavigationLocation +
-        FVector(0.0f, 0.0f, HalfHeight + 2.0f);
-    const FVector CapsuleEnd = EndNavigationLocation +
-        FVector(0.0f, 0.0f, HalfHeight + 2.0f);
+    // Keep the capsule bottom above the higher endpoint. This preserves
+    // static wall/bar blocking without treating a stair riser or floor edge
+    // below the feet as a wall.
+    const float SweepGroundZ = FMath::Max(
+        StartNavigationLocation.Z,
+        EndNavigationLocation.Z
+    );
+    const FVector CapsuleStart(
+        StartNavigationLocation.X,
+        StartNavigationLocation.Y,
+        SweepGroundZ + HalfHeight + 2.0f
+    );
+    const FVector CapsuleEnd(
+        EndNavigationLocation.X,
+        EndNavigationLocation.Y,
+        SweepGroundZ + HalfHeight + 2.0f
+    );
 
     FCollisionObjectQueryParams ObjectQuery;
     ObjectQuery.AddObjectTypesToQuery(ECC_WorldStatic);
@@ -2757,13 +3277,36 @@ bool UOpenAIJackComponent::IsActionNavigationSegmentBlocked(
     {
         QueryParams.AddIgnoredActor(WorldStateAgent->GetHeldActor());
     }
+    if (ReservedSeatActor.IsValid())
+    {
+        QueryParams.AddIgnoredActor(ReservedSeatActor.Get());
+    }
+    if (IsValid(AdditionalIgnoredActor))
+    {
+        QueryParams.AddIgnoredActor(AdditionalIgnoredActor);
+    }
 
     if (CapsuleStart.Equals(CapsuleEnd, 0.1f))
     {
         OutHit = FHitResult();
         return IsActionNavigationLocationBlocked(
-            StartNavigationLocation
+            StartNavigationLocation,
+            AdditionalIgnoredActor
         );
+    }
+
+    FVector NavigationHitLocation;
+    if (UNavigationSystemV1::NavigationRaycast(
+            World,
+            StartNavigationLocation,
+            EndNavigationLocation,
+            NavigationHitLocation))
+    {
+        OutHit = FHitResult();
+        OutHit.bBlockingHit = true;
+        OutHit.Location = NavigationHitLocation;
+        OutHit.ImpactPoint = NavigationHitLocation;
+        return true;
     }
 
     return World->SweepSingleByObjectType(
@@ -2781,7 +3324,8 @@ bool UOpenAIJackComponent::BuildCollisionAwareNavigationPath(
     const FVector& StartLocation,
     const FVector& GoalLocation,
     TArray<FVector>& OutPathPoints,
-    int32& OutExpandedNodes
+    int32& OutExpandedNodes,
+    const AActor* AdditionalIgnoredActor
 ) const
 {
     OutPathPoints.Reset();
@@ -2858,6 +3402,7 @@ bool UOpenAIJackComponent::BuildCollisionAwareNavigationPath(
         GoalNavLocation,
         GridSize,
         ProjectionExtent,
+        AdditionalIgnoredActor,
         &ValidCellLocations,
         &InvalidCells
     ](const FIntPoint& Cell, FVector& OutLocation) -> bool
@@ -2902,7 +3447,9 @@ bool UOpenAIJackComponent::BuildCollisionAwareNavigationPath(
                 ProjectionExtent) ||
             FVector::Dist2D(Candidate, Projected.Location) >
                 GridSize * 0.8f ||
-            IsActionNavigationLocationBlocked(Projected.Location))
+            IsActionNavigationLocationBlocked(
+                Projected.Location,
+                AdditionalIgnoredActor))
         {
             InvalidCells.Add(Cell);
             return false;
@@ -2978,7 +3525,8 @@ bool UOpenAIJackComponent::BuildCollisionAwareNavigationPath(
             !IsActionNavigationSegmentBlocked(
                 CurrentLocation,
                 GoalNavLocation.Location,
-                GoalHit))
+                GoalHit,
+                AdditionalIgnoredActor))
         {
             ReachedCell = OpenNode.Cell;
             bReachedGoal = true;
@@ -3014,7 +3562,8 @@ bool UOpenAIJackComponent::BuildCollisionAwareNavigationPath(
             if (IsActionNavigationSegmentBlocked(
                     CurrentLocation,
                     NeighborLocation,
-                    EdgeHit))
+                    EdgeHit,
+                    AdditionalIgnoredActor))
             {
                 continue;
             }
@@ -3091,7 +3640,8 @@ bool UOpenAIJackComponent::BuildCollisionAwareNavigationPath(
             !IsActionNavigationSegmentBlocked(
                 OutPathPoints[OutPathPoints.Num() - 2],
                 Point,
-                CombinedHit))
+                CombinedHit,
+                AdditionalIgnoredActor))
         {
             OutPathPoints.Last() = Point;
         }
@@ -3303,6 +3853,17 @@ bool UOpenAIJackComponent::StartMoveToLocation(
         bPendingStandMoveUseRun = bRun;
         bPendingStandMoveFacePlayer = bFacePlayerAtDestination;
         bPendingStandMoveSitAtDestination = bSitAtDestination;
+        UE_LOG(
+            LogTemp,
+            Display,
+            TEXT(
+                "JACK_ACTION queued_after_stand action=move_to "
+                "destination=%s run=%d sit=%d"
+            ),
+            *Destination.ToCompactString(),
+            bRun ? 1 : 0,
+            bSitAtDestination ? 1 : 0
+        );
         BeginStandUpTransition();
         return true;
     }
@@ -3787,7 +4348,6 @@ bool UOpenAIJackComponent::FindActionGroundHeight(
     {
         QueryParams.AddIgnoredActor(WorldStateAgent->GetHeldActor());
     }
-
     FHitResult Hit;
     const float TraceAbove = FMath::Max(
         60.0f,
@@ -3902,6 +4462,11 @@ bool UOpenAIJackComponent::IsActionCapsuleMoveBlocked(
         FNavLocation StartNavigationLocation;
         FNavLocation EndNavigationLocation;
         const FVector EndLocation = StartLocation + Delta;
+        const float ProjectionTolerance = FMath::Clamp(
+            ActionCollisionRadius * 0.35f,
+            6.0f,
+            15.0f
+        );
         if (NavigationSystem->ProjectPointToNavigation(
                 StartLocation,
                 StartNavigationLocation,
@@ -3913,11 +4478,11 @@ bool UOpenAIJackComponent::IsActionCapsuleMoveBlocked(
             FVector::Dist2D(
                 StartLocation,
                 StartNavigationLocation.Location) <=
-                ProjectionRadius * 1.25f &&
+                ProjectionTolerance &&
             FVector::Dist2D(
                 EndLocation,
                 EndNavigationLocation.Location) <=
-                ProjectionRadius * 1.25f)
+                ProjectionTolerance)
         {
             return IsActionNavigationSegmentBlocked(
                 StartNavigationLocation.Location,
@@ -3932,12 +4497,31 @@ bool UOpenAIJackComponent::IsActionCapsuleMoveBlocked(
         Radius + 1.0f,
         ActionCollisionHalfHeight
     );
-    float GroundZ = StartLocation.Z;
-    FindActionGroundHeight(StartLocation, GroundZ);
+    float StartGroundZ = StartLocation.Z;
+    FindActionGroundHeight(StartLocation, StartGroundZ);
+    float EndGroundZ = StartGroundZ;
+    const FVector EndLocation = StartLocation + Delta;
+    if (!FindActionGroundHeight(EndLocation, EndGroundZ))
+    {
+        EndGroundZ = StartGroundZ;
+    }
+    const float GroundDelta = EndGroundZ - StartGroundZ;
+    if (!IsGroundStepTraversable(
+            GroundDelta,
+            ActionMaximumGroundStepUp,
+            ActionMaximumGroundStepDown))
+    {
+        OutHit = FHitResult();
+        OutHit.bBlockingHit = true;
+        OutHit.Location = EndLocation;
+        OutHit.ImpactPoint = EndLocation;
+        return true;
+    }
+    const float SweepGroundZ = FMath::Max(StartGroundZ, EndGroundZ);
     const FVector CapsuleStart(
         StartLocation.X,
         StartLocation.Y,
-        GroundZ + HalfHeight + 2.0f
+        SweepGroundZ + HalfHeight + 2.0f
     );
     const FVector CapsuleEnd = CapsuleStart +
         FVector(Delta.X, Delta.Y, 0.0f);
@@ -3955,6 +4539,10 @@ bool UOpenAIJackComponent::IsActionCapsuleMoveBlocked(
     {
         QueryParams.AddIgnoredActor(WorldStateAgent->GetHeldActor());
     }
+    if (ReservedSeatActor.IsValid())
+    {
+        QueryParams.AddIgnoredActor(ReservedSeatActor.Get());
+    }
     return World->SweepSingleByObjectType(
         OutHit,
         CapsuleStart,
@@ -3964,6 +4552,16 @@ bool UOpenAIJackComponent::IsActionCapsuleMoveBlocked(
         FCollisionShape::MakeCapsule(Radius, HalfHeight),
         QueryParams
     );
+}
+
+bool UOpenAIJackComponent::IsGroundStepTraversable(
+    const float GroundDelta,
+    const float MaximumStepUp,
+    const float MaximumStepDown
+)
+{
+    return GroundDelta <= FMath::Max(10.0f, MaximumStepUp) &&
+        GroundDelta >= -FMath::Max(20.0f, MaximumStepDown);
 }
 
 bool UOpenAIJackComponent::FindCollisionSafeMove(
@@ -4743,18 +5341,26 @@ void UOpenAIJackComponent::RequestResponse(
 )
 {
     const double ChatStartSeconds = FPlatformTime::Seconds();
+    const bool bUseOpenAI =
+        GetEffectiveLLMProvider() == EJackLLMProvider::OpenAIAPI;
     const bool bUseStreamingResponse =
         bEnableStreamingResponses &&
         bEnableQueuedSpeech &&
         bEnableHttpTTS;
     TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
-    Body->SetStringField(TEXT("model"), Model);
-    Body->SetBoolField(TEXT("stream"), bUseStreamingResponse);
-    Body->SetBoolField(TEXT("think"), false);
     Body->SetStringField(
-        TEXT("keep_alive"),
-        GetEffectiveModelKeepAlive()
+        TEXT("model"),
+        bUseOpenAI ? OpenAIChatModel : Model
     );
+    Body->SetBoolField(TEXT("stream"), bUseStreamingResponse);
+    if (!bUseOpenAI)
+    {
+        Body->SetBoolField(TEXT("think"), false);
+        Body->SetStringField(
+            TEXT("keep_alive"),
+            GetEffectiveModelKeepAlive()
+        );
+    }
 
     TArray<TSharedPtr<FJsonValue>> Messages;
     TSharedRef<FJsonObject> SystemMessage = MakeShared<FJsonObject>();
@@ -4781,6 +5387,19 @@ void UOpenAIJackComponent::RequestResponse(
             WorldStateAgent->GetWorldStateText()
         );
         Messages.Add(MakeShared<FJsonValueObject>(WorldMessage));
+    }
+
+    const FString NearbyConversationContext =
+        BuildSessionConversationContext(false);
+    if (!NearbyConversationContext.IsEmpty())
+    {
+        TSharedRef<FJsonObject> ContextMessage = MakeShared<FJsonObject>();
+        ContextMessage->SetStringField(TEXT("role"), TEXT("system"));
+        ContextMessage->SetStringField(
+            TEXT("content"),
+            NearbyConversationContext
+        );
+        Messages.Add(MakeShared<FJsonValueObject>(ContextMessage));
     }
 
     if (!RelevantPastMessages.IsEmpty())
@@ -4820,17 +5439,33 @@ void UOpenAIJackComponent::RequestResponse(
     Messages.Add(MakeShared<FJsonValueObject>(UserMessage));
     Body->SetArrayField(TEXT("messages"), Messages);
 
-    TSharedRef<FJsonObject> Options = MakeShared<FJsonObject>();
-    Options->SetNumberField(TEXT("temperature"), 0.4);
-    Options->SetNumberField(TEXT("top_p"), 0.8);
-    Options->SetNumberField(TEXT("top_k"), 32);
-    Options->SetNumberField(TEXT("num_ctx"), ContextLength);
-    Options->SetNumberField(TEXT("num_gpu"), GpuLayers);
-    if (MaxOutputTokens > 0)
+    if (bUseOpenAI)
     {
-        Options->SetNumberField(TEXT("num_predict"), MaxOutputTokens);
+        if (MaxOutputTokens > 0)
+        {
+            Body->SetNumberField(TEXT("max_completion_tokens"), MaxOutputTokens);
+        }
+        if (bUseStreamingResponse)
+        {
+            TSharedRef<FJsonObject> StreamOptions = MakeShared<FJsonObject>();
+            StreamOptions->SetBoolField(TEXT("include_usage"), true);
+            Body->SetObjectField(TEXT("stream_options"), StreamOptions);
+        }
     }
-    Body->SetObjectField(TEXT("options"), Options);
+    else
+    {
+        TSharedRef<FJsonObject> Options = MakeShared<FJsonObject>();
+        Options->SetNumberField(TEXT("temperature"), 0.4);
+        Options->SetNumberField(TEXT("top_p"), 0.8);
+        Options->SetNumberField(TEXT("top_k"), 32);
+        Options->SetNumberField(TEXT("num_ctx"), ContextLength);
+        Options->SetNumberField(TEXT("num_gpu"), GpuLayers);
+        if (MaxOutputTokens > 0)
+        {
+            Options->SetNumberField(TEXT("num_predict"), MaxOutputTokens);
+        }
+        Body->SetObjectField(TEXT("options"), Options);
+    }
 
     FString Json;
     const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Json);
@@ -4838,9 +5473,22 @@ void UOpenAIJackComponent::RequestResponse(
 
     const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request =
         FHttpModule::Get().CreateRequest();
-    Request->SetURL(OllamaChatUrl);
+    Request->SetURL(bUseOpenAI ? OpenAIChatUrl : OllamaChatUrl);
     Request->SetVerb(TEXT("POST"));
     Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    if (bUseOpenAI)
+    {
+        const FString ApiKey = GetLLMApiKey();
+        if (ApiKey.IsEmpty())
+        {
+            Fail(FString::Printf(
+                TEXT("%s is required for OpenAI LLM chat."),
+                *OpenAIApiKeyEnvironmentVariable
+            ));
+            return;
+        }
+        Request->SetHeader(TEXT("Authorization"), TEXT("Bearer ") + ApiKey);
+    }
     Request->SetTimeout(RequestTimeoutSeconds);
     Request->SetContentAsString(Json);
 
@@ -4865,6 +5513,7 @@ void UOpenAIJackComponent::RequestResponse(
                 [
                     StreamState,
                     WeakThis,
+                    bUseOpenAI,
                     StreamingFirstSentencesPerSegment,
                     StreamingMaxSentencesPerSegment,
                     StreamingMaxSegmentCharacters,
@@ -4915,25 +5564,77 @@ void UOpenAIJackComponent::RequestResponse(
                                 Utf8BytesToString(LineBytes).TrimStartAndEnd();
                             if (!Line.IsEmpty())
                             {
+                                const FString Payload = bUseOpenAI
+                                    ? ExtractSseData(Line)
+                                    : Line;
+                                if (bUseOpenAI && Payload == TEXT("[DONE]"))
+                                {
+                                    StreamState->bSawDone = true;
+                                    LineBreakIndex = FindLineBreakIndex(
+                                        StreamState->PendingBytes
+                                    );
+                                    continue;
+                                }
+
                                 TSharedPtr<FJsonObject> Root;
                                 const TSharedRef<TJsonReader<>> Reader =
-                                    TJsonReaderFactory<>::Create(Line);
+                                    TJsonReaderFactory<>::Create(Payload);
                                 if (FJsonSerializer::Deserialize(Reader, Root) &&
                                     Root.IsValid())
                                 {
-                                    const TSharedPtr<FJsonObject>* Message =
-                                        nullptr;
                                     FString Delta;
-                                    if (Root->TryGetObjectField(
-                                            TEXT("message"),
-                                            Message
-                                        ) &&
-                                        Message->IsValid())
+                                    if (bUseOpenAI)
                                     {
-                                        (*Message)->TryGetStringField(
-                                            TEXT("content"),
-                                            Delta
+                                        Delta = ExtractOpenAIChatDelta(Root);
+                                        ExtractOpenAIUsage(
+                                            Root,
+                                            StreamState->PromptTokenCount,
+                                            StreamState->OutputTokenCount
                                         );
+                                    }
+                                    else
+                                    {
+                                        const TSharedPtr<FJsonObject>* Message =
+                                            nullptr;
+                                        if (Root->TryGetObjectField(
+                                                TEXT("message"),
+                                                Message
+                                            ) &&
+                                            Message->IsValid())
+                                        {
+                                            (*Message)->TryGetStringField(
+                                                TEXT("content"),
+                                                Delta
+                                            );
+                                        }
+
+                                        bool bDone = false;
+                                        if (Root->TryGetBoolField(
+                                                TEXT("done"),
+                                                bDone
+                                            ) &&
+                                            bDone)
+                                        {
+                                            StreamState->bSawDone = true;
+                                            Root->TryGetNumberField(
+                                                TEXT("prompt_eval_duration"),
+                                                StreamState
+                                                    ->PromptDurationNanoseconds
+                                            );
+                                            Root->TryGetNumberField(
+                                                TEXT("eval_duration"),
+                                                StreamState
+                                                    ->EvalDurationNanoseconds
+                                            );
+                                            Root->TryGetNumberField(
+                                                TEXT("prompt_eval_count"),
+                                                StreamState->PromptTokenCount
+                                            );
+                                            Root->TryGetNumberField(
+                                                TEXT("eval_count"),
+                                                StreamState->OutputTokenCount
+                                            );
+                                        }
                                     }
 
                                     if (!Delta.IsEmpty())
@@ -4952,32 +5653,6 @@ void UOpenAIJackComponent::RequestResponse(
                                             StreamState
                                                 ->bHasDispatchedSpeechSegment,
                                             SegmentsToDispatch
-                                        );
-                                    }
-
-                                    bool bDone = false;
-                                    if (Root->TryGetBoolField(
-                                            TEXT("done"),
-                                            bDone
-                                        ) &&
-                                        bDone)
-                                    {
-                                        StreamState->bSawDone = true;
-                                        Root->TryGetNumberField(
-                                            TEXT("prompt_eval_duration"),
-                                            StreamState->PromptDurationNanoseconds
-                                        );
-                                        Root->TryGetNumberField(
-                                            TEXT("eval_duration"),
-                                            StreamState->EvalDurationNanoseconds
-                                        );
-                                        Root->TryGetNumberField(
-                                            TEXT("prompt_eval_count"),
-                                            StreamState->PromptTokenCount
-                                        );
-                                        Root->TryGetNumberField(
-                                            TEXT("eval_count"),
-                                            StreamState->OutputTokenCount
                                         );
                                     }
                                 }
@@ -5030,7 +5705,14 @@ void UOpenAIJackComponent::RequestResponse(
     }
 
     Request->OnProcessRequestComplete().BindLambda(
-        [this, PlayerText, ChatStartSeconds, bUseStreamingResponse, StreamState](
+        [
+            this,
+            PlayerText,
+            ChatStartSeconds,
+            bUseStreamingResponse,
+            bUseOpenAI,
+            StreamState
+        ](
             FHttpRequestPtr,
             FHttpResponsePtr Response,
             bool bSucceeded
@@ -5040,9 +5722,14 @@ void UOpenAIJackComponent::RequestResponse(
                 Response->GetResponseCode() < 200 ||
                 Response->GetResponseCode() >= 300)
             {
-                Fail(Response.IsValid()
+                const FString ErrorMessage = Response.IsValid()
                     ? Response->GetContentAsString()
-                    : TEXT("Ollama request failed. Is Ollama running?"));
+                    : bUseOpenAI
+                        ? FString(TEXT("OpenAI API request failed."))
+                        : FString(
+                            TEXT("Ollama request failed. Is Ollama running?")
+                        );
+                Fail(ErrorMessage);
                 return;
             }
 
@@ -5050,7 +5737,9 @@ void UOpenAIJackComponent::RequestResponse(
             {
                 if (!StreamState.IsValid())
                 {
-                    Fail(TEXT("Ollama streaming state was not initialized."));
+                    Fail(bUseOpenAI
+                        ? TEXT("OpenAI streaming state was not initialized.")
+                        : TEXT("Ollama streaming state was not initialized."));
                     return;
                 }
 
@@ -5078,7 +5767,9 @@ void UOpenAIJackComponent::RequestResponse(
 
                 if (Reply.IsEmpty())
                 {
-                    Fail(TEXT("Ollama returned no streamed reply text."));
+                    Fail(bUseOpenAI
+                        ? TEXT("OpenAI returned no streamed reply text.")
+                        : TEXT("Ollama returned no streamed reply text."));
                     return;
                 }
 
@@ -5143,14 +5834,20 @@ void UOpenAIJackComponent::RequestResponse(
                 TJsonReaderFactory<>::Create(Response->GetContentAsString());
             if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
             {
-                Fail(TEXT("Could not parse the Ollama response."));
+                Fail(bUseOpenAI
+                    ? TEXT("Could not parse the OpenAI response.")
+                    : TEXT("Could not parse the Ollama response."));
                 return;
             }
 
-            const FString Reply = ExtractOllamaReply(Root);
+            const FString Reply = bUseOpenAI
+                ? ExtractOpenAIChatReply(Root)
+                : ExtractOllamaReply(Root);
             if (Reply.IsEmpty())
             {
-                Fail(TEXT("Ollama returned no reply text."));
+                Fail(bUseOpenAI
+                    ? TEXT("OpenAI returned no reply text.")
+                    : TEXT("Ollama returned no reply text."));
                 return;
             }
 
@@ -5158,22 +5855,33 @@ void UOpenAIJackComponent::RequestResponse(
             double EvalDurationNanoseconds = 0.0;
             double PromptTokenCount = 0.0;
             double OutputTokenCount = 0.0;
-            Root->TryGetNumberField(
-                TEXT("prompt_eval_duration"),
-                PromptDurationNanoseconds
-            );
-            Root->TryGetNumberField(
-                TEXT("eval_duration"),
-                EvalDurationNanoseconds
-            );
-            Root->TryGetNumberField(
-                TEXT("prompt_eval_count"),
-                PromptTokenCount
-            );
-            Root->TryGetNumberField(
-                TEXT("eval_count"),
-                OutputTokenCount
-            );
+            if (bUseOpenAI)
+            {
+                ExtractOpenAIUsage(
+                    Root,
+                    PromptTokenCount,
+                    OutputTokenCount
+                );
+            }
+            else
+            {
+                Root->TryGetNumberField(
+                    TEXT("prompt_eval_duration"),
+                    PromptDurationNanoseconds
+                );
+                Root->TryGetNumberField(
+                    TEXT("eval_duration"),
+                    EvalDurationNanoseconds
+                );
+                Root->TryGetNumberField(
+                    TEXT("prompt_eval_count"),
+                    PromptTokenCount
+                );
+                Root->TryGetNumberField(
+                    TEXT("eval_count"),
+                    OutputTokenCount
+                );
+            }
             UE_LOG(
                 LogTemp,
                 Display,
@@ -5237,7 +5945,9 @@ void UOpenAIJackComponent::RequestResponse(
     );
     if (!Request->ProcessRequest())
     {
-        Fail(TEXT("Could not start the Ollama HTTP request."));
+        Fail(bUseOpenAI
+            ? TEXT("Could not start the OpenAI HTTP request.")
+            : TEXT("Could not start the Ollama HTTP request."));
     }
 }
 
@@ -5277,6 +5987,14 @@ void UOpenAIJackComponent::AddConversationTurn(
             MemoryTurns.Num() - FMath::Max(1, MaxStoredConversationTurns)
         );
     }
+    RecordSessionConversationExchange(
+        GetResolvedNPCID(),
+        PlayerText,
+        ReplyText,
+        NAME_None,
+        FString(),
+        false
+    );
     const int32 NewTurnIndex = MemoryTurns.Num() - 1;
 
     if (bEnableSessionMemoryFile)
@@ -5284,6 +6002,89 @@ void UOpenAIJackComponent::AddConversationTurn(
         SaveMemory();
     }
     RequestTurnEmbedding(NewTurnIndex);
+}
+
+void UOpenAIJackComponent::RememberConversationExchange(
+    FName PrimaryNPCID,
+    const FString& PlayerText,
+    const FString& PrimaryReply,
+    FName SecondaryNPCID,
+    const FString& SecondaryReply
+)
+{
+    RecordSessionConversationExchange(
+        PrimaryNPCID,
+        PlayerText,
+        PrimaryReply,
+        SecondaryNPCID,
+        SecondaryReply,
+        true
+    );
+}
+
+void UOpenAIJackComponent::RecordSessionConversationExchange(
+    FName PrimaryNPCID,
+    const FString& PlayerText,
+    const FString& PrimaryReply,
+    FName SecondaryNPCID,
+    const FString& SecondaryReply,
+    bool bSaveAfterRecording
+)
+{
+    const FString TrimmedPlayerText = PlayerText.TrimStartAndEnd();
+    const FString TrimmedPrimaryReply = PrimaryReply.TrimStartAndEnd();
+    const FString TrimmedSecondaryReply = SecondaryReply.TrimStartAndEnd();
+    if (PrimaryNPCID.IsNone() || TrimmedPlayerText.IsEmpty() ||
+        TrimmedPrimaryReply.IsEmpty())
+    {
+        return;
+    }
+
+    FSessionConversationExchange* Existing = nullptr;
+    if (!SessionConversationExchanges.IsEmpty())
+    {
+        FSessionConversationExchange& Last =
+            SessionConversationExchanges.Last();
+        if (Last.PrimaryNPCID == PrimaryNPCID &&
+            Last.PlayerText == TrimmedPlayerText &&
+            Last.PrimaryReply == TrimmedPrimaryReply)
+        {
+            Existing = &Last;
+        }
+    }
+
+    if (Existing)
+    {
+        if (!SecondaryNPCID.IsNone() && !TrimmedSecondaryReply.IsEmpty())
+        {
+            Existing->SecondaryNPCID = SecondaryNPCID;
+            Existing->SecondaryReply = TrimmedSecondaryReply;
+        }
+    }
+    else
+    {
+        FSessionConversationExchange& Exchange =
+            SessionConversationExchanges.AddDefaulted_GetRef();
+        Exchange.PrimaryNPCID = PrimaryNPCID;
+        Exchange.PlayerText = TrimmedPlayerText;
+        Exchange.PrimaryReply = TrimmedPrimaryReply;
+        Exchange.SecondaryNPCID = SecondaryNPCID;
+        Exchange.SecondaryReply = TrimmedSecondaryReply;
+    }
+
+    const int32 MaximumStoredTurns =
+        FMath::Max(1, MaxStoredConversationTurns);
+    if (SessionConversationExchanges.Num() > MaximumStoredTurns)
+    {
+        SessionConversationExchanges.RemoveAt(
+            0,
+            SessionConversationExchanges.Num() - MaximumStoredTurns
+        );
+    }
+    if (bSaveAfterRecording && bEnableSessionMemoryFile)
+    {
+        SaveMemory();
+    }
 }
 
 void UOpenAIJackComponent::PublishReplyText(const FString& ReplyText)
@@ -5313,6 +6114,7 @@ void UOpenAIJackComponent::InitializeSessionMemory()
     ConversationHistory.Reset();
     PersistentHistory.Reset();
     MemoryTurns.Reset();
+    SessionConversationExchanges.Reset();
 
     if (bEnableSessionMemoryFile)
     {
@@ -5345,7 +6147,7 @@ bool UOpenAIJackComponent::SaveMemory()
     );
 
     TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-    Root->SetNumberField(TEXT("version"), 1);
+    Root->SetNumberField(TEXT("version"), 2);
     Root->SetStringField(
         TEXT("npc"),
         GetResolvedNPCID().ToString()
@@ -5370,6 +6172,36 @@ bool UOpenAIJackComponent::SaveMemory()
         Turns.Add(MakeShared<FJsonValueObject>(JsonTurn));
     }
     Root->SetArrayField(TEXT("turns"), Turns);
+
+    TArray<TSharedPtr<FJsonValue>> SessionContext;
+    for (const FSessionConversationExchange& Exchange :
+         SessionConversationExchanges)
+    {
+        TSharedRef<FJsonObject> JsonExchange = MakeShared<FJsonObject>();
+        JsonExchange->SetStringField(
+            TEXT("primary_npc"),
+            Exchange.PrimaryNPCID.ToString()
+        );
+        JsonExchange->SetStringField(TEXT("player"), Exchange.PlayerText);
+        JsonExchange->SetStringField(
+            TEXT("primary_reply"),
+            Exchange.PrimaryReply
+        );
+        if (!Exchange.SecondaryNPCID.IsNone() &&
+            !Exchange.SecondaryReply.IsEmpty())
+        {
+            JsonExchange->SetStringField(
+                TEXT("secondary_npc"),
+                Exchange.SecondaryNPCID.ToString()
+            );
+            JsonExchange->SetStringField(
+                TEXT("secondary_reply"),
+                Exchange.SecondaryReply
+            );
+        }
+        SessionContext.Add(MakeShared<FJsonValueObject>(JsonExchange));
+    }
+    Root->SetArrayField(TEXT("session_context"), SessionContext);
 
     FString Json;
     const TSharedRef<TJsonWriter<>> Writer =
@@ -6935,6 +7767,45 @@ bool UOpenAIJackComponent::StartACEWavFileAsync(
         return false;
     }
 
+    if (bEnableACEDirectMorphBridge && bACEDirectMorphsActive)
+    {
+        ClearACEDirectMorphBridge();
+    }
+    ACECurveSource = nullptr;
+    ACEFaceMesh = nullptr;
+    ResolveACEDirectMorphBridge();
+    if (IsValid(ACECurveSource))
+    {
+        ACECurveSource->Activate(true);
+        ACECurveSource->SetComponentTickEnabled(true);
+    }
+    if (IsValid(ACEFaceMesh))
+    {
+        ACEFaceMesh->SetComponentTickEnabled(true);
+    }
+    UE_LOG(
+        LogTemp,
+        Display,
+        TEXT(
+            "JACK_ACE_BINDING actor=%s curve_source=%s active=%d tick=%d "
+            "face_mesh=%s face_anim_class=%s face_tick=%d direct_morph=%d"
+        ),
+        *GetNameSafe(Owner),
+        *GetNameSafe(ACECurveSource),
+        IsValid(ACECurveSource) && ACECurveSource->IsActive() ? 1 : 0,
+        IsValid(ACECurveSource) && ACECurveSource->IsComponentTickEnabled()
+            ? 1
+            : 0,
+        *GetNameSafe(ACEFaceMesh),
+        IsValid(ACEFaceMesh)
+            ? *GetNameSafe(ACEFaceMesh->GetAnimClass())
+            : TEXT("None"),
+        IsValid(ACEFaceMesh) && ACEFaceMesh->IsComponentTickEnabled()
+            ? 1
+            : 0,
+        bEnableACEDirectMorphBridge ? 1 : 0
+    );
+
     UAsyncActionAnimateCharacter* Action =
         UAsyncActionAnimateCharacter::AnimateCharacterFromWavFileAsync(
             this,
@@ -7419,6 +8290,23 @@ void UOpenAIJackComponent::ApplyACEDirectMorphBridge()
         return;
     }
 
+    if (!bACEDirectMorphsActive)
+    {
+        UE_LOG(
+            LogTemp,
+            Display,
+            TEXT(
+                "JACK_ACE_MORPHS_ACTIVE actor=%s face_mesh=%s "
+                "weights=%d jaw_open=%.3f mouth_close=%.3f"
+            ),
+            *GetNameSafe(GetOwner()),
+            *GetNameSafe(ACEFaceMesh),
+            Weights.Num(),
+            GetACECurveWeight(Weights, TEXT("JawOpen")),
+            GetACECurveWeight(Weights, TEXT("MouthClose"))
+        );
+    }
+
     ApplyACEToMetaHumanMorphs(
         ACEFaceMesh,
         Weights,
@@ -7500,7 +8388,7 @@ void UOpenAIJackComponent::UpdateKeyboardPushToTalk(float DeltaTime)
 {
     (void)DeltaTime;
 
-    if (!bEnableKeyboardPushToTalk)
+    if (!bEnableKeyboardPushToTalk && !bEnableVRControllerPushToTalk)
     {
         bKeyboardPushToTalkWasDown = false;
         bKeyboardPushToTalkStopPending = false;
@@ -7526,20 +8414,88 @@ void UOpenAIJackComponent::UpdateKeyboardPushToTalk(float DeltaTime)
         return;
     }
 
-    const bool bIsDown =
+    const bool bKeyboardIsDown = bEnableKeyboardPushToTalk &&
         PlayerController->IsInputKeyDown(KeyboardPushToTalkKey);
+    bool bVRControllerIsDown = false;
+    if (bEnableVRControllerPushToTalk)
+    {
+        const UInputAction* PushToTalkAction = VRPushToTalkAction.Get();
+        if (!PushToTalkAction && !VRPushToTalkAction.IsNull())
+        {
+            PushToTalkAction = VRPushToTalkAction.LoadSynchronous();
+        }
+
+        if (const UEnhancedPlayerInput* EnhancedPlayerInput =
+                Cast<UEnhancedPlayerInput>(PlayerController->PlayerInput);
+            EnhancedPlayerInput && PushToTalkAction)
+        {
+            bVRControllerIsDown = EnhancedPlayerInput
+                ->GetActionValue(PushToTalkAction)
+                .Get<bool>();
+        }
+
+        // Some XR runtimes still publish controller keys directly.
+        bVRControllerIsDown = bVRControllerIsDown ||
+            PlayerController->IsInputKeyDown(
+                EKeys::OculusTouch_Right_A_Click) ||
+            PlayerController->IsInputKeyDown(
+                EKeys::Gamepad_FaceButton_Bottom);
+    }
+    const bool bIsDown = bKeyboardIsDown || bVRControllerIsDown;
+    const bool bUseRealtimeVoice = ShouldUseOpenAIRealtimeVoice();
+    const TCHAR* InputSource = bVRControllerIsDown
+        ? TEXT("right_controller_a")
+        : TEXT("keyboard_t");
     const double NowSeconds =
         World ? static_cast<double>(World->GetTimeSeconds()) : 0.0;
 
     if (bIsDown && !bKeyboardPushToTalkWasDown)
     {
         bKeyboardPushToTalkStopPending = false;
+        UOpenAIJackComponent* RealtimeTarget = this;
+        FString RealtimeTargetReason = TEXT("InputCoordinator");
+        if (bUseRealtimeVoice && World)
+        {
+            if (UOpenAINPCConversationSubsystem* ConversationSubsystem =
+                    World->GetSubsystem<
+                        UOpenAINPCConversationSubsystem>())
+            {
+                if (UOpenAIJackComponent* ResolvedTarget =
+                        ConversationSubsystem->ResolveRecognizedPlayerTarget(
+                            this,
+                            FString(),
+                            RealtimeTargetReason
+                        );
+                    IsValid(ResolvedTarget) &&
+                    ResolvedTarget->ShouldUseOpenAIRealtimeVoice())
+                {
+                    RealtimeTarget = ResolvedTarget;
+                }
+            }
+        }
+        if (bUseRealtimeVoice &&
+            !TryClaimRealtimePushToTalk(RealtimeTarget))
+        {
+            UE_LOG(
+                LogTemp,
+                Display,
+                TEXT("JACK_SPEECH_INPUT skipped reason=realtime_owned actor=%s"),
+                *GetNameSafe(GetOwner())
+            );
+            bKeyboardPushToTalkWasDown = bIsDown;
+            return;
+        }
         UE_LOG(
             LogTemp,
             Display,
-            TEXT("JACK_SPEECH_INPUT push_to_talk_down key=%s backend=%s"),
-            *KeyboardPushToTalkKey.ToString(),
-            bEnableHttpSTT ? TEXT("http") : TEXT("windows_sapi")
+            TEXT("JACK_SPEECH_INPUT push_to_talk_down source=%s key=%s backend=%s"),
+            InputSource,
+            bVRControllerIsDown
+                ? TEXT("IA_PushToTalk")
+                : *KeyboardPushToTalkKey.ToString(),
+            bUseRealtimeVoice
+                ? TEXT("openai_realtime")
+                : (bEnableHttpSTT ? TEXT("http") : TEXT("windows_sapi"))
         );
         UE_LOG(
             LogTemp,
@@ -7547,7 +8503,25 @@ void UOpenAIJackComponent::UpdateKeyboardPushToTalk(float DeltaTime)
             TEXT("JACK_WINDOWS_STT push_to_talk_down key=%s"),
             *KeyboardPushToTalkKey.ToString()
         );
-        if (bEnableHttpSTT)
+        if (bUseRealtimeVoice)
+        {
+            UE_LOG(
+                LogTemp,
+                Display,
+                TEXT(
+                    "JACK_REALTIME target_selected npc=%s reason=%s "
+                    "actor=%s"
+                ),
+                *RealtimeTarget->GetResolvedNPCID().ToString(),
+                *RealtimeTargetReason,
+                *GetNameSafe(RealtimeTarget->GetOwner())
+            );
+            if (!RealtimeTarget->StartRealtimeVoice())
+            {
+                ReleaseRealtimePushToTalk(RealtimeTarget);
+            }
+        }
+        else if (bEnableHttpSTT)
         {
             StartHttpSTT();
         }
@@ -7565,12 +8539,19 @@ void UOpenAIJackComponent::UpdateKeyboardPushToTalk(float DeltaTime)
         bKeyboardPushToTalkStopPending = true;
         KeyboardPushToTalkStopAtTimeSeconds =
             NowSeconds + static_cast<double>(GraceSeconds);
+        const UOpenAIJackComponent* RealtimeOwner =
+            GetRealtimePushToTalkOwner();
+        const bool bRealtimeActive = IsValid(RealtimeOwner) &&
+            (RealtimeOwner->bRealtimeVoiceListening ||
+             RealtimeOwner->bRealtimeVoiceRequestInFlight);
         UE_LOG(
             LogTemp,
             Display,
             TEXT("JACK_SPEECH_INPUT push_to_talk_up grace=%.2f backend=%s"),
             GraceSeconds,
-            bEnableHttpSTT ? TEXT("http") : TEXT("windows_sapi")
+            bRealtimeActive
+                ? TEXT("openai_realtime")
+                : (bEnableHttpSTT ? TEXT("http") : TEXT("windows_sapi"))
         );
         UE_LOG(
             LogTemp,
@@ -7590,7 +8571,15 @@ void UOpenAIJackComponent::UpdateKeyboardPushToTalk(float DeltaTime)
         NowSeconds >= KeyboardPushToTalkStopAtTimeSeconds)
     {
         bKeyboardPushToTalkStopPending = false;
-        if (bEnableHttpSTT)
+        UOpenAIJackComponent* RealtimeOwner =
+            GetRealtimePushToTalkOwner();
+        if (IsValid(RealtimeOwner) &&
+            (RealtimeOwner->bRealtimeVoiceListening ||
+             RealtimeOwner->bRealtimeVoiceRequestInFlight))
+        {
+            RealtimeOwner->StopRealtimeVoice();
+        }
+        else if (bEnableHttpSTT)
         {
             StopHttpSTT();
         }
@@ -7598,6 +8587,624 @@ void UOpenAIJackComponent::UpdateKeyboardPushToTalk(float DeltaTime)
         {
             StopWindowsSTT();
         }
+    }
+}
+
+bool UOpenAIJackComponent::StartRealtimeVoice()
+{
+    if (!ShouldUseOpenAIRealtimeVoice())
+    {
+        ReleaseRealtimePushToTalk(this);
+        return false;
+    }
+    if (RealtimeStartUrl.TrimStartAndEnd().IsEmpty())
+    {
+        ReleaseRealtimePushToTalk(this);
+        Fail(TEXT("OpenAI Realtime start URL is empty."));
+        return false;
+    }
+    if (bRealtimeVoiceListening)
+    {
+        return true;
+    }
+
+    TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetStringField(
+        TEXT("instructions"),
+        GetResolvedRealtimeInstructions() +
+        TEXT(" Speak only dialogue addressed to the player. Do not read ")
+        TEXT("metadata, stage directions, or system behavior aloud.")
+    );
+    Body->SetStringField(TEXT("npc_id"), GetResolvedNPCID().ToString());
+    Body->SetStringField(TEXT("memory_file"), MemoryFileName);
+    Body->SetStringField(TEXT("voice"), GetResolvedRealtimeVoice());
+
+    FString Json;
+    const TSharedRef<TJsonWriter<>> Writer =
+        TJsonWriterFactory<>::Create(&Json);
+    FJsonSerializer::Serialize(Body, Writer);
+
+    const int32 RequestGeneration = ++RealtimeVoiceRequestGeneration;
+    bRealtimeVoiceListening = true;
+    bRealtimeVoiceRequestInFlight = true;
+    const TWeakObjectPtr<UOpenAIJackComponent> WeakThis(this);
+
+    const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request =
+        FHttpModule::Get().CreateRequest();
+    Request->SetURL(RealtimeStartUrl);
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetTimeout(RequestTimeoutSeconds);
+    Request->SetContentAsString(Json);
+    Request->OnProcessRequestComplete().BindLambda(
+        [WeakThis, RequestGeneration](
+            FHttpRequestPtr,
+            FHttpResponsePtr Response,
+            bool bSucceeded
+        )
+        {
+            UOpenAIJackComponent* StrongThis = WeakThis.Get();
+            if (!IsValid(StrongThis) ||
+                RequestGeneration !=
+                    StrongThis->RealtimeVoiceRequestGeneration)
+            {
+                return;
+            }
+
+            StrongThis->bRealtimeVoiceRequestInFlight = false;
+            const int32 ResponseCode =
+                Response.IsValid() ? Response->GetResponseCode() : 0;
+            if (!bSucceeded || !Response.IsValid() ||
+                ResponseCode < 200 || ResponseCode >= 300)
+            {
+                StrongThis->bRealtimeVoiceListening = false;
+                ReleaseRealtimePushToTalk(StrongThis);
+                StrongThis->Fail(FString::Printf(
+                    TEXT("OpenAI Realtime start failed code=%d body=%s"),
+                    ResponseCode,
+                    Response.IsValid()
+                        ? *Response->GetContentAsString()
+                        : TEXT("<no response>")
+                ));
+                return;
+            }
+
+            UE_LOG(
+                LogTemp,
+                Display,
+                TEXT("JACK_REALTIME started actor=%s npc=%s voice=%s url=%s"),
+                *GetNameSafe(StrongThis->GetOwner()),
+                *StrongThis->GetResolvedNPCID().ToString(),
+                *StrongThis->GetResolvedRealtimeVoice(),
+                *StrongThis->RealtimeStartUrl
+            );
+        }
+    );
+
+    if (!Request->ProcessRequest())
+    {
+        bRealtimeVoiceListening = false;
+        bRealtimeVoiceRequestInFlight = false;
+        ReleaseRealtimePushToTalk(this);
+        Fail(TEXT("OpenAI Realtime start request could not be processed."));
+        return false;
+    }
+    return true;
+}
+
+void UOpenAIJackComponent::RequestRealtimeSpeech(const FString& Text)
+{
+    const FString TrimmedText = Text.TrimStartAndEnd();
+    if (TrimmedText.IsEmpty())
+    {
+        bBusy = false;
+        return;
+    }
+    if (RealtimeSayUrl.TrimStartAndEnd().IsEmpty())
+    {
+        Fail(TEXT("OpenAI Realtime say URL is empty."));
+        return;
+    }
+
+    TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetStringField(TEXT("text"), TrimmedText);
+    Body->SetStringField(
+        TEXT("instructions"),
+        GetResolvedRealtimeInstructions()
+    );
+    Body->SetStringField(TEXT("npc_id"), GetResolvedNPCID().ToString());
+    Body->SetStringField(TEXT("voice"), GetResolvedRealtimeVoice());
+
+    FString Json;
+    const TSharedRef<TJsonWriter<>> Writer =
+        TJsonWriterFactory<>::Create(&Json);
+    FJsonSerializer::Serialize(Body, Writer);
+
+    const double RequestStartSeconds = FPlatformTime::Seconds();
+    const TWeakObjectPtr<UOpenAIJackComponent> WeakThis(this);
+    const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request =
+        FHttpModule::Get().CreateRequest();
+    Request->SetURL(RealtimeSayUrl);
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
+    Request->SetTimeout(RequestTimeoutSeconds);
+    Request->SetContentAsString(Json);
+    Request->OnProcessRequestComplete().BindLambda(
+        [WeakThis, TrimmedText, RequestStartSeconds](
+            FHttpRequestPtr,
+            FHttpResponsePtr Response,
+            bool bSucceeded
+        )
+        {
+            UOpenAIJackComponent* StrongThis = WeakThis.Get();
+            if (!IsValid(StrongThis))
+            {
+                return;
+            }
+
+            const int32 ResponseCode =
+                Response.IsValid() ? Response->GetResponseCode() : 0;
+            if (!bSucceeded || !Response.IsValid() ||
+                ResponseCode < 200 || ResponseCode >= 300)
+            {
+                StrongThis->Fail(FString::Printf(
+                    TEXT("OpenAI Realtime say failed code=%d body=%s"),
+                    ResponseCode,
+                    Response.IsValid()
+                        ? *Response->GetContentAsString()
+                        : TEXT("<no response>")
+                ));
+                return;
+            }
+
+            TSharedPtr<FJsonObject> Root;
+            const TSharedRef<TJsonReader<>> Reader =
+                TJsonReaderFactory<>::Create(Response->GetContentAsString());
+            bool bOk = false;
+            if (!FJsonSerializer::Deserialize(Reader, Root) ||
+                !Root.IsValid() ||
+                !Root->TryGetBoolField(TEXT("ok"), bOk) ||
+                !bOk)
+            {
+                StrongThis->Fail(
+                    TEXT("OpenAI Realtime say returned invalid JSON.")
+                );
+                return;
+            }
+
+            FString AudioBase64;
+            Root->TryGetStringField(TEXT("audio_wav_base64"), AudioBase64);
+            TArray<uint8> WavBytes;
+            if (AudioBase64.IsEmpty() ||
+                !FBase64::Decode(AudioBase64, WavBytes))
+            {
+                StrongThis->Fail(
+                    TEXT("OpenAI Realtime say returned no valid WAV audio.")
+                );
+                return;
+            }
+
+            UE_LOG(
+                LogTemp,
+                Display,
+                TEXT(
+                    "JACK_REALTIME_SAY completed npc=%s ms=%.1f "
+                    "chars=%d audio_bytes=%d"
+                ),
+                *StrongThis->GetResolvedNPCID().ToString(),
+                (FPlatformTime::Seconds() - RequestStartSeconds) * 1000.0,
+                TrimmedText.Len(),
+                WavBytes.Num()
+            );
+            StrongThis->ShowScreenSubtitle(
+                TrimmedText,
+                EstimateWavDurationSeconds(WavBytes)
+            );
+            if (StrongThis->bEnableACEAudio2Face &&
+                StrongThis->TryPlayWavWithACE(WavBytes))
+            {
+                return;
+            }
+            StrongThis->PlayWavBytes(WavBytes);
+            StrongThis->bBusy = false;
+        }
+    );
+
+    if (!Request->ProcessRequest())
+    {
+        Fail(TEXT("OpenAI Realtime say request could not be processed."));
+    }
+}
+
+void UOpenAIJackComponent::RequestRealtimeTextResponse(
+    const FString& PlayerText
+)
+{
+    const FString TrimmedPlayerText = PlayerText.TrimStartAndEnd();
+    if (TrimmedPlayerText.IsEmpty())
+    {
+        bBusy = false;
+        return;
+    }
+    if (RealtimeRespondUrl.TrimStartAndEnd().IsEmpty())
+    {
+        Fail(TEXT("OpenAI Realtime respond URL is empty."));
+        return;
+    }
+
+    TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
+    Body->SetStringField(TEXT("text"), TrimmedPlayerText);
+    Body->SetStringField(
+        TEXT("instructions"),
+        GetResolvedRealtimeInstructions()
+    );
+    Body->SetStringField(TEXT("npc_id"), GetResolvedNPCID().ToString());
+    Body->SetStringField(TEXT("voice"), GetResolvedRealtimeVoice());
+
+    FString Json;
+    const TSharedRef<TJsonWriter<>> Writer =
+        TJsonWriterFactory<>::Create(&Json);
+    FJsonSerializer::Serialize(Body, Writer);
+
+    const double RequestStartSeconds = FPlatformTime::Seconds();
+    const TWeakObjectPtr<UOpenAIJackComponent> WeakThis(this);
+    const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request =
+        FHttpModule::Get().CreateRequest();
+    Request->SetURL(RealtimeRespondUrl);
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
+    Request->SetTimeout(RequestTimeoutSeconds);
+    Request->SetContentAsString(Json);
+    Request->OnProcessRequestComplete().BindLambda(
+        [WeakThis, TrimmedPlayerText, RequestStartSeconds](
+            FHttpRequestPtr,
+            FHttpResponsePtr Response,
+            bool bSucceeded
+        )
+        {
+            UOpenAIJackComponent* StrongThis = WeakThis.Get();
+            if (!IsValid(StrongThis))
+            {
+                return;
+            }
+
+            const int32 ResponseCode =
+                Response.IsValid() ? Response->GetResponseCode() : 0;
+            if (!bSucceeded || !Response.IsValid() ||
+                ResponseCode < 200 || ResponseCode >= 300)
+            {
+                StrongThis->Fail(FString::Printf(
+                    TEXT("OpenAI Realtime respond failed code=%d body=%s"),
+                    ResponseCode,
+                    Response.IsValid()
+                        ? *Response->GetContentAsString()
+                        : TEXT("<no response>")
+                ));
+                return;
+            }
+
+            TSharedPtr<FJsonObject> Root;
+            const TSharedRef<TJsonReader<>> Reader =
+                TJsonReaderFactory<>::Create(Response->GetContentAsString());
+            bool bOk = false;
+            if (!FJsonSerializer::Deserialize(Reader, Root) ||
+                !Root.IsValid() ||
+                !Root->TryGetBoolField(TEXT("ok"), bOk) ||
+                !bOk)
+            {
+                StrongThis->Fail(
+                    TEXT("OpenAI Realtime respond returned invalid JSON.")
+                );
+                return;
+            }
+
+            FString ReplyText;
+            FString AudioBase64;
+            Root->TryGetStringField(TEXT("reply_text"), ReplyText);
+            Root->TryGetStringField(TEXT("audio_wav_base64"), AudioBase64);
+            ReplyText.TrimStartAndEndInline();
+
+            TArray<uint8> WavBytes;
+            if (ReplyText.IsEmpty() || AudioBase64.IsEmpty() ||
+                !FBase64::Decode(AudioBase64, WavBytes))
+            {
+                StrongThis->Fail(
+                    TEXT("OpenAI Realtime respond returned no reply audio.")
+                );
+                return;
+            }
+
+            UE_LOG(
+                LogTemp,
+                Display,
+                TEXT(
+                    "JACK_REALTIME_RESPOND completed npc=%s voice=%s "
+                    "ms=%.1f reply_chars=%d audio_bytes=%d"
+                ),
+                *StrongThis->GetResolvedNPCID().ToString(),
+                *StrongThis->GetResolvedRealtimeVoice(),
+                (FPlatformTime::Seconds() - RequestStartSeconds) * 1000.0,
+                ReplyText.Len(),
+                WavBytes.Num()
+            );
+            StrongThis->PublishReplyText(ReplyText);
+            StrongThis->AddConversationTurn(
+                TrimmedPlayerText,
+                ReplyText
+            );
+            StrongThis->ShowScreenSubtitle(
+                ReplyText,
+                EstimateWavDurationSeconds(WavBytes)
+            );
+            if (StrongThis->bEnableACEAudio2Face &&
+                StrongThis->TryPlayWavWithACE(WavBytes))
+            {
+                return;
+            }
+            StrongThis->PlayWavBytes(WavBytes);
+            StrongThis->bBusy = false;
+        }
+    );
+
+    if (!Request->ProcessRequest())
+    {
+        Fail(TEXT("OpenAI Realtime respond request could not be processed."));
+    }
+}
+
+void UOpenAIJackComponent::StopRealtimeVoice()
+{
+    if (!bRealtimeVoiceListening && !bRealtimeVoiceRequestInFlight)
+    {
+        ReleaseRealtimePushToTalk(this);
+        return;
+    }
+    if (RealtimeStopUrl.TrimStartAndEnd().IsEmpty())
+    {
+        bRealtimeVoiceListening = false;
+        bRealtimeVoiceRequestInFlight = false;
+        ReleaseRealtimePushToTalk(this);
+        Fail(TEXT("OpenAI Realtime stop URL is empty."));
+        return;
+    }
+
+    TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
+    FString Json;
+    const TSharedRef<TJsonWriter<>> Writer =
+        TJsonWriterFactory<>::Create(&Json);
+    FJsonSerializer::Serialize(Body, Writer);
+
+    const int32 RequestGeneration = ++RealtimeVoiceRequestGeneration;
+    bRealtimeVoiceListening = false;
+    bRealtimeVoiceRequestInFlight = true;
+    bBusy = true;
+
+    const double StopStartSeconds = FPlatformTime::Seconds();
+    const TWeakObjectPtr<UOpenAIJackComponent> WeakThis(this);
+    const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request =
+        FHttpModule::Get().CreateRequest();
+    Request->SetURL(RealtimeStopUrl);
+    Request->SetVerb(TEXT("POST"));
+    Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+    Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
+    Request->SetTimeout(RequestTimeoutSeconds);
+    Request->SetContentAsString(Json);
+    Request->OnProcessRequestComplete().BindLambda(
+        [WeakThis, RequestGeneration, StopStartSeconds](
+            FHttpRequestPtr,
+            FHttpResponsePtr Response,
+            bool bSucceeded
+        )
+        {
+            UOpenAIJackComponent* StrongThis = WeakThis.Get();
+            if (!IsValid(StrongThis) ||
+                RequestGeneration !=
+                    StrongThis->RealtimeVoiceRequestGeneration)
+            {
+                return;
+            }
+
+            ReleaseRealtimePushToTalk(StrongThis);
+            StrongThis->bRealtimeVoiceRequestInFlight = false;
+            const int32 ResponseCode =
+                Response.IsValid() ? Response->GetResponseCode() : 0;
+            if (!bSucceeded || !Response.IsValid() ||
+                ResponseCode < 200 || ResponseCode >= 300)
+            {
+                StrongThis->Fail(FString::Printf(
+                    TEXT("OpenAI Realtime stop failed code=%d body=%s"),
+                    ResponseCode,
+                    Response.IsValid()
+                        ? *Response->GetContentAsString()
+                        : TEXT("<no response>")
+                ));
+                return;
+            }
+
+            TSharedPtr<FJsonObject> Root;
+            const TSharedRef<TJsonReader<>> Reader =
+                TJsonReaderFactory<>::Create(Response->GetContentAsString());
+            if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
+            {
+                StrongThis->Fail(
+                    TEXT("OpenAI Realtime bridge returned invalid JSON.")
+                );
+                return;
+            }
+
+            bool bOk = false;
+            bool bSkipped = false;
+            Root->TryGetBoolField(TEXT("ok"), bOk);
+            Root->TryGetBoolField(TEXT("skipped"), bSkipped);
+            if (!bOk && bSkipped)
+            {
+                FString Reason;
+                Root->TryGetStringField(TEXT("reason"), Reason);
+                StrongThis->bBusy = false;
+                UE_LOG(
+                    LogTemp,
+                    Display,
+                    TEXT("JACK_REALTIME skipped reason=%s"),
+                    *Reason
+                );
+                return;
+            }
+            if (!bOk)
+            {
+                FString Error;
+                Root->TryGetStringField(TEXT("error"), Error);
+                StrongThis->Fail(Error.IsEmpty()
+                    ? TEXT("OpenAI Realtime bridge request failed.")
+                    : Error);
+                return;
+            }
+
+            FString UserText;
+            FString ReplyText;
+            FString AudioBase64;
+            double RealtimeMs = 0.0;
+            Root->TryGetStringField(TEXT("user_text"), UserText);
+            Root->TryGetStringField(TEXT("reply_text"), ReplyText);
+            Root->TryGetStringField(TEXT("audio_wav_base64"), AudioBase64);
+            Root->TryGetNumberField(TEXT("realtime_ms"), RealtimeMs);
+            UserText.TrimStartAndEndInline();
+            ReplyText.TrimStartAndEndInline();
+
+            TArray<uint8> WavBytes;
+            if (AudioBase64.IsEmpty() ||
+                !FBase64::Decode(AudioBase64, WavBytes))
+            {
+                StrongThis->Fail(
+                    TEXT("OpenAI Realtime bridge returned no valid WAV audio.")
+                );
+                return;
+            }
+
+            UE_LOG(
+                LogTemp,
+                Display,
+                TEXT("JACK_REALTIME stopped total_ms=%.1f realtime_ms=%.1f user_chars=%d reply_chars=%d audio_bytes=%d"),
+                (FPlatformTime::Seconds() - StopStartSeconds) * 1000.0,
+                RealtimeMs,
+                UserText.Len(),
+                ReplyText.Len(),
+                WavBytes.Num()
+            );
+
+            UOpenAIJackComponent* ResponseTarget = StrongThis;
+            UOpenAINPCConversationSubsystem* ConversationSubsystem = nullptr;
+            FString TargetReason = TEXT("RealtimeSessionOwner");
+            if (UWorld* World = StrongThis->GetWorld())
+            {
+                ConversationSubsystem = World->GetSubsystem<
+                    UOpenAINPCConversationSubsystem>();
+            }
+
+            if (!UserText.IsEmpty())
+            {
+                if (IsValid(ConversationSubsystem))
+                {
+                    if (UOpenAIJackComponent* ResolvedTarget =
+                            ConversationSubsystem->
+                                ResolveRecognizedPlayerTarget(
+                                    StrongThis,
+                                    UserText,
+                                    TargetReason
+                                ))
+                    {
+                        ResponseTarget = ResolvedTarget;
+                    }
+                }
+
+                if (ResponseTarget != StrongThis)
+                {
+                    StrongThis->bBusy = false;
+                    if (ResponseTarget->IsConversationOutputActive())
+                    {
+                        ResponseTarget->InterruptConversationOutput();
+                    }
+                    ResponseTarget->bBusy = true;
+                }
+
+                ResponseTarget->OnRecognizedSpeechText.Broadcast(UserText);
+                if (IsValid(ConversationSubsystem))
+                {
+                    ConversationSubsystem->NotifyPlayerTextSubmitted(
+                        ResponseTarget,
+                        UserText
+                    );
+                }
+
+                FString ActionReply;
+                const bool bActionHandled = ResponseTarget->
+                    TryExecuteRecognizedPlayerAction(
+                        UserText,
+                        ActionReply
+                    );
+                UE_LOG(
+                    LogTemp,
+                    Display,
+                    TEXT(
+                        "JACK_REALTIME response_target=%s reason=%s "
+                        "session_owner=%s action_handled=%d "
+                        "text=%s reply=%s"
+                    ),
+                    *ResponseTarget->GetResolvedNPCID().ToString(),
+                    *TargetReason,
+                    *StrongThis->GetResolvedNPCID().ToString(),
+                    bActionHandled ? 1 : 0,
+                    *UserText,
+                    *ActionReply
+                );
+            }
+            if (ResponseTarget != StrongThis && !UserText.IsEmpty())
+            {
+                UE_LOG(
+                    LogTemp,
+                    Display,
+                    TEXT(
+                        "JACK_REALTIME reroute_regenerate from=%s to=%s "
+                        "voice=%s"
+                    ),
+                    *StrongThis->GetResolvedNPCID().ToString(),
+                    *ResponseTarget->GetResolvedNPCID().ToString(),
+                    *ResponseTarget->GetResolvedRealtimeVoice()
+                );
+                ResponseTarget->RequestRealtimeTextResponse(UserText);
+                return;
+            }
+            if (!ReplyText.IsEmpty())
+            {
+                ResponseTarget->PublishReplyText(ReplyText);
+                ResponseTarget->AddConversationTurn(
+                    UserText.IsEmpty() ? TEXT("<voice input>") : UserText,
+                    ReplyText
+                );
+                ResponseTarget->ShowScreenSubtitle(
+                    ReplyText,
+                    EstimateWavDurationSeconds(WavBytes)
+                );
+            }
+
+            if (ResponseTarget->bEnableACEAudio2Face &&
+                ResponseTarget->TryPlayWavWithACE(WavBytes))
+            {
+                return;
+            }
+            ResponseTarget->PlayWavBytes(WavBytes);
+            ResponseTarget->bBusy = false;
+            StrongThis->bBusy = false;
+        }
+    );
+
+    if (!Request->ProcessRequest())
+    {
+        bRealtimeVoiceRequestInFlight = false;
+        bBusy = false;
+        ReleaseRealtimePushToTalk(this);
+        Fail(TEXT("OpenAI Realtime stop request could not be processed."));
     }
 }
 
